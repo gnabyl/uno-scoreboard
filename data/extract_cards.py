@@ -59,10 +59,9 @@ CARD_NAMES = {
          "light_green_reverse"],
     ],
     "dark": [
-        # r0: purple flip, wilds, and skip-all cards
-        ["dark_purple_flip", "dark_wild_color", "dark_skip_all", "dark_skip_all",
-         "dark_skip_all", "dark_skip_all", "dark_wild_draw_until", "dark_skip_all",
-         "dark_skip_all", "dark_skip_all", "dark_skip_all", "dark_skip_all"],
+        # r0: wilds only (first cell and "skip" cells are ignored)
+        [None, "dark_wild_color", None, None, None, None,
+         "dark_wild_draw_until", None, None, None, None, None],
         # r1: orange
         ["dark_orange_1", "dark_orange_2", "dark_orange_3", "dark_orange_4",
          "dark_orange_5", "dark_orange_6", "dark_orange_7", "dark_orange_8",
