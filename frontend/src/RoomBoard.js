@@ -68,7 +68,22 @@ function ScoreCell({ value, label, onCommit, busy }) {
 
   const commit = () => {
     focusedRef.current = false;
-    if (draft !== cellString(value)) onCommit(draft);
+    if (draft.trim() === "") {
+      if (draft !== cellString(value)) onCommit(draft);
+      return;
+    }
+
+    const num = Number(draft);
+
+    if (!Number.isFinite(num)) return;
+
+    const negativeValue = String(-Math.abs(num));
+
+    setDraft(negativeValue);
+
+    if (negativeValue !== cellString(value)) {
+      onCommit(negativeValue);
+    }
   };
 
   const isNegative = parseFloat(draft) < 0;
@@ -156,7 +171,7 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
     preloadStartedRef.current = true;
     preloadModel()
       .then(() => setModelReady(true))
-      .catch(() => {});
+      .catch(() => { });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -267,7 +282,7 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
     videoRef.current = node;
     if (node && streamRef.current) {
       node.srcObject = streamRef.current;
-      node.play().catch(() => {});
+      node.play().catch(() => { });
     }
   };
 
@@ -283,7 +298,7 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play().catch(() => {});
+        videoRef.current.play().catch(() => { });
       }
     } catch {
       setCameraError(
@@ -336,12 +351,12 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
       setScan((prev) =>
         prev
           ? {
-              ...prev,
-              status: 'done',
-              cards: result.cards,
-              annotatedPreview,
-              score: -computeScore(result.cards),
-            }
+            ...prev,
+            status: 'done',
+            cards: result.cards,
+            annotatedPreview,
+            score: -computeScore(result.cards),
+          }
           : prev
       );
     } catch (err) {
@@ -414,11 +429,10 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
                 return (
                   <li
                     key={p.id}
-                    className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold ${
-                      winner
+                    className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold ${winner
                         ? 'border-transparent bg-[rgba(42,157,143,1)] text-white'
                         : 'border-edge bg-raised text-fg'
-                    }`}
+                      }`}
                   >
                     <span
                       className={`h-2.5 w-2.5 shrink-0 rounded-full ${PLAYER_COLORS[i % 4]}`}
@@ -458,107 +472,107 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
                 No rounds yet — press “+ New round” to start scoring.
               </div>
             ) : (
-            <ol className="m-0 flex list-none flex-col gap-3 p-0">
-              {rounds.map((round, roundIndex) => {
-                const summary = roundSummaries[round.id];
-                const isCollapsed = collapsed.has(round.id);
-                const winnerName = summary.winner
-                  ? players.find((p) => p.id === summary.winner)?.name
-                  : null;
-                const anyScored = players.some((p) => {
-                  const v = round.scores[p.id];
-                  return v !== null && v !== undefined && v !== '';
-                });
-                return (
-                  <li
-                    key={round.id}
-                    className="rounded-2xl border border-edge bg-panel shadow-panel"
-                  >
-                    <div className="flex items-center">
-                      <button
-                        type="button"
-                        className="flex min-w-0 flex-1 items-center justify-between gap-3 border-none bg-transparent px-4 py-3 text-left"
-                        onClick={() => toggleRound(round.id)}
-                        aria-expanded={!isCollapsed}
-                      >
-                        <span className="text-sm font-bold text-muted">
-                          Round {roundIndex + 1}
-                        </span>
-                        <span className="flex min-w-0 items-center gap-2 text-xs">
-                          {winnerName ? (
-                            <span className="truncate text-[#7dff9a]">{winnerName} won</span>
-                          ) : anyScored ? (
-                            <span className="text-faint">Σ {summary.sum}</span>
-                          ) : null}
-                          <span className="text-faint" aria-hidden="true">
-                            {isCollapsed ? '▸' : '▾'}
+              <ol className="m-0 flex list-none flex-col gap-3 p-0">
+                {rounds.map((round, roundIndex) => {
+                  const summary = roundSummaries[round.id];
+                  const isCollapsed = collapsed.has(round.id);
+                  const winnerName = summary.winner
+                    ? players.find((p) => p.id === summary.winner)?.name
+                    : null;
+                  const anyScored = players.some((p) => {
+                    const v = round.scores[p.id];
+                    return v !== null && v !== undefined && v !== '';
+                  });
+                  return (
+                    <li
+                      key={round.id}
+                      className="rounded-2xl border border-edge bg-panel shadow-panel"
+                    >
+                      <div className="flex items-center">
+                        <button
+                          type="button"
+                          className="flex min-w-0 flex-1 items-center justify-between gap-3 border-none bg-transparent px-4 py-3 text-left"
+                          onClick={() => toggleRound(round.id)}
+                          aria-expanded={!isCollapsed}
+                        >
+                          <span className="text-sm font-bold text-muted">
+                            Round {roundIndex + 1}
                           </span>
-                        </span>
-                      </button>
-                      <button
-                        className="mr-3 rounded border-none bg-transparent p-0 text-lg leading-none text-faint transition hover:text-[#ff6b6b]"
-                        title="Remove round"
-                        aria-label={`Remove round ${roundIndex + 1}`}
-                        disabled={busy}
-                        onClick={() => handleRemoveRound(round.id)}
-                      >
-                        ×
-                      </button>
-                    </div>
-                    {!isCollapsed && (
-                      <ul className="m-0 flex list-none flex-col gap-2 border-t border-edge-soft p-4 pt-3">
-                        {players.map((p, pi) => {
-                          const isRoundWinner = summary.winner === p.id;
-                          const raw = round.scores[p.id];
-                          return (
-                            <li
-                              key={p.id}
-                              className="flex items-center gap-3 rounded-xl border border-edge-soft bg-deep px-3 py-2"
-                            >
-                              <span
-                                className={`h-3 w-3 shrink-0 rounded-full ${PLAYER_COLORS[pi % 4]}`}
-                                aria-hidden="true"
-                              />
-                              <span className="min-w-0 flex-1 truncate text-sm text-fg">
-                                {p.name}
-                              </span>
-                              {isRoundWinner ? (
-                                <span
-                                  className={`${SCORE_FIELD} inline-flex items-center justify-center font-bold text-[#7dff9a]`}
-                                >
-                                  {Math.abs(summary.sum)}
-                                </span>
-                              ) : (
-                                <ScoreCell
-                                  value={raw}
-                                  label={`${p.name} round ${roundIndex + 1} score`}
-                                  busy={busy}
-                                  onCommit={(value) => handleSetScore(round.id, p.id, value)}
-                                />
-                              )}
-                              <button
-                                className={CAMERA_BTN}
-                                title={
-                                  modelReady ? `Scan ${p.name}'s cards` : 'Detector still loading…'
-                                }
-                                aria-label={`Scan ${p.name}'s cards for round ${roundIndex + 1}`}
-                                disabled={!modelReady}
-                                onClick={() => openCamera(round.id, p.id)}
+                          <span className="flex min-w-0 items-center gap-2 text-xs">
+                            {winnerName ? (
+                              <span className="truncate text-[#7dff9a]">{winnerName} won</span>
+                            ) : anyScored ? (
+                              <span className="text-faint">Σ {summary.sum}</span>
+                            ) : null}
+                            <span className="text-faint" aria-hidden="true">
+                              {isCollapsed ? '▸' : '▾'}
+                            </span>
+                          </span>
+                        </button>
+                        <button
+                          className="mr-3 rounded border-none bg-transparent p-0 text-lg leading-none text-faint transition hover:text-[#ff6b6b]"
+                          title="Remove round"
+                          aria-label={`Remove round ${roundIndex + 1}`}
+                          disabled={busy}
+                          onClick={() => handleRemoveRound(round.id)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                      {!isCollapsed && (
+                        <ul className="m-0 flex list-none flex-col gap-2 border-t border-edge-soft p-4 pt-3">
+                          {players.map((p, pi) => {
+                            const isRoundWinner = summary.winner === p.id;
+                            const raw = round.scores[p.id];
+                            return (
+                              <li
+                                key={p.id}
+                                className="flex items-center gap-3 rounded-xl border border-edge-soft bg-deep px-3 py-2"
                               >
-                                <span className="block -translate-y-[0.22em]" aria-hidden="true">
-                                  📷
+                                <span
+                                  className={`h-3 w-3 shrink-0 rounded-full ${PLAYER_COLORS[pi % 4]}`}
+                                  aria-hidden="true"
+                                />
+                                <span className="min-w-0 flex-1 truncate text-sm text-fg">
+                                  {p.name}
                                 </span>
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-                  </li>
-                );
-              })}
-            </ol>
-          )}
+                                {isRoundWinner ? (
+                                  <span
+                                    className={`${SCORE_FIELD} inline-flex items-center justify-center font-bold text-[#7dff9a]`}
+                                  >
+                                    {Math.abs(summary.sum)}
+                                  </span>
+                                ) : (
+                                  <ScoreCell
+                                    value={raw}
+                                    label={`${p.name} round ${roundIndex + 1} score`}
+                                    busy={busy}
+                                    onCommit={(value) => handleSetScore(round.id, p.id, value)}
+                                  />
+                                )}
+                                <button
+                                  className={CAMERA_BTN}
+                                  title={
+                                    modelReady ? `Scan ${p.name}'s cards` : 'Detector still loading…'
+                                  }
+                                  aria-label={`Scan ${p.name}'s cards for round ${roundIndex + 1}`}
+                                  disabled={!modelReady}
+                                  onClick={() => openCamera(round.id, p.id)}
+                                >
+                                  <span className="block -translate-y-[0.22em]" aria-hidden="true">
+                                    📷
+                                  </span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
           </div>
         </>
       )}
