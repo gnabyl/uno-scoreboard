@@ -71,7 +71,7 @@ CLASS_ID = {name: i for i, name in enumerate(CLASSES)}
 
 # Minimum angular gap (degrees) between adjacent cards in a hand. Prevents a
 # small spread angle from stacking many cards into what looks like one card.
-MIN_SEP_DEG = 8.0
+MIN_SEP_DEG = 10.0
 
 # Upper bound on the total fan spread, so the fan never wraps past a full
 # semicircle (large hands with a big per-card gap get clamped to this).
@@ -250,11 +250,33 @@ def rotate_hand(img, anns, angle):
         for x, y in ((x0, y0), (x1, y0), (x0, y1), (x1, y1)):
             xs.append(cos_t * (x - cx) + sin_t * (y - cy) + cx)
             ys.append(-sin_t * (x - cx) + cos_t * (y - cy) + cy)
-        nx0, ny0 = max(0.0, min(xs)), max(0.0, min(ys))
-        nx1, ny1 = min(float(w), max(xs)), min(float(h), max(ys))
-        if nx1 > nx0 and ny1 > ny0:
-            new_anns.append((cls_id, nx0, ny0, nx1, ny1))
+        nx0, ny0 = min(xs), min(ys)
+        nx1, ny1 = max(xs), max(ys)
+        new_anns.append((cls_id, nx0, ny0, nx1, ny1))
     return rotated, new_anns
+
+
+def _clip_anns(anns, w, h, min_vis=0.5):
+    """Clip boxes to the canvas and drop boxes that fall mostly off-canvas.
+
+    A box that is less than `min_vis` visible (e.g. a corner marker whose card
+    runs off the frame) is dropped instead of leaving a sliver that bounds
+    mostly empty space.
+    """
+    out = []
+    for cls_id, x0, y0, x1, y1 in anns:
+        orig_w, orig_h = x1 - x0, y1 - y0
+        if orig_w <= 0 or orig_h <= 0:
+            continue
+        cx0, cy0 = max(0.0, x0), max(0.0, y0)
+        cx1, cy1 = min(float(w), x1), min(float(h), y1)
+        if cx1 <= cx0 or cy1 <= cy0:
+            continue
+        visible = ((cx1 - cx0) * (cy1 - cy0)) / (orig_w * orig_h)
+        if visible < min_vis:
+            continue
+        out.append((cls_id, cx0, cy0, cx1, cy1))
+    return out
 
 
 def write_data_yaml():
@@ -342,17 +364,29 @@ def make_hand(card_paths, args):
         )
     bg.alpha_composite(canvas)
     img = apply_lighting(bg.convert("RGB"))
+    anns = _clip_anns(anns, img.width, img.height)
     return img, anns
 
 
 def _generate_task(task):
     """Generate and save one hand. Runs in a worker process."""
-    k, seed, card_paths, params, img_dirs, lbl_dirs, val_frac, debug_dir = task
+    (
+        k,
+        seed,
+        card_paths,
+        params,
+        img_dirs,
+        lbl_dirs,
+        val_frac,
+        debug_dir,
+        start_index,
+    ) = task
     random.seed(seed)
     img, anns = make_hand(card_paths, params)
     split = "val" if random.random() < val_frac else "train"
-    img.save(img_dirs[split] / f"hand_{k:05d}.png")
-    with open(lbl_dirs[split] / f"hand_{k:05d}.txt", "w") as f:
+    idx = start_index + k
+    img.save(img_dirs[split] / f"hand_{idx:05d}.png")
+    with open(lbl_dirs[split] / f"hand_{idx:05d}.txt", "w") as f:
         iw, ih = img.size
         for cls_id, x0, y0, x1, y1 in anns:
             cx = (x0 + x1) / 2 / iw
@@ -361,7 +395,7 @@ def _generate_task(task):
             bh = (y1 - y0) / ih
             f.write(f"{cls_id} {cx:.6f} {cy:.6f} {bw:.6f} {bh:.6f}\n")
     if debug_dir is not None:
-        draw_boxes(img, anns).save(debug_dir / f"hand_{k:05d}.png")
+        draw_boxes(img, anns).save(debug_dir / f"hand_{idx:05d}.png")
     return k
 
 
@@ -400,11 +434,11 @@ def main():
     ap.add_argument("--count", type=int, default=10, help="images to generate")
     ap.add_argument("--side", default="both", choices=["light", "dark", "both"])
     ap.add_argument("--min-cards", type=int, default=2)
-    ap.add_argument("--max-cards", type=int, default=10)
-    ap.add_argument("--min-angle", type=float, default=5)
+    ap.add_argument("--max-cards", type=int, default=6)
+    ap.add_argument("--min-angle", type=float, default=6)
     ap.add_argument("--max-angle", type=float, default=17)
-    ap.add_argument("--min-card-h", type=float, default=180)
-    ap.add_argument("--max-card-h", type=float, default=380)
+    ap.add_argument("--min-card-h", type=float, default=120)
+    ap.add_argument("--max-card-h", type=float, default=720)
     ap.add_argument(
         "--warp",
         type=float,
@@ -458,6 +492,17 @@ def main():
         help="parallel worker processes (default: all CPU cores)",
     )
     ap.add_argument("--out", default=None)
+    ap.add_argument(
+        "--start-index",
+        type=int,
+        default=0,
+        help="numbering offset for output files (use with --keep-existing to append)",
+    )
+    ap.add_argument(
+        "--keep-existing",
+        action="store_true",
+        help="do not clear existing files in the output dirs (append mode)",
+    )
     args = ap.parse_args()
 
     random.seed(args.seed)
@@ -467,9 +512,10 @@ def main():
     lbl_dirs = {s: out_dir / "labels" / s for s in ("train", "val")}
     for d in list(img_dirs.values()) + list(lbl_dirs.values()):
         d.mkdir(parents=True, exist_ok=True)
-        for old in d.iterdir():
-            if old.is_file():
-                old.unlink()  # remove stale outputs from previous runs
+        if not args.keep_existing:
+            for old in d.iterdir():
+                if old.is_file():
+                    old.unlink()  # remove stale outputs from previous runs
 
     with open(HERE / "classes.txt", "w") as f:
         f.write("\n".join(CLASSES) + "\n")
@@ -487,7 +533,17 @@ def main():
     for k in range(args.count):
         seed = None if args.seed is None else args.seed + k
         tasks.append(
-            (k, seed, card_paths, args, img_dirs, lbl_dirs, args.val_frac, debug_dir)
+            (
+                k,
+                seed,
+                card_paths,
+                args,
+                img_dirs,
+                lbl_dirs,
+                args.val_frac,
+                debug_dir,
+                args.start_index,
+            )
         )
 
     _run_tasks(tasks, args.workers, args.count)

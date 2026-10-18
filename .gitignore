@@ -16,3 +16,8 @@ __pycache__/
 # Training artifacts
 train/runs/
 data/*.pt
+
+# Model weights and prediction outputs
+weights/
+runs/
+*.onnx
