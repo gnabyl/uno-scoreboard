@@ -559,7 +559,7 @@ tr:hover .remove-btn {
 }
 
 .card-points {
-  color: #4ad0b9;
+  color: #ff4d4d;
   font-size: 14px;
   font-weight: 700;
 }
@@ -591,7 +591,7 @@ tr:hover .remove-btn {
   border: 1px solid #2c3444;
   border-radius: 10px;
   background: #0f1521;
-  color: #ffffff;
+  color: #ff4d4d;
   font-size: 16px;
   font-weight: 700;
   outline: none;

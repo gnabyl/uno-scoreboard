@@ -35,22 +35,16 @@ async function annotatePreview(file, detections, width, height) {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(bitmap, 0, 0, width, height);
 
-    ctx.strokeStyle = '#ff4d4d';
-    ctx.fillStyle = '#ff4d4d';
-    ctx.lineWidth = Math.max(2, Math.round(Math.min(width, height) / 300));
-    const fontSize = Math.max(12, Math.round(height / 40));
-    ctx.font = `${fontSize}px sans-serif`;
-
-    for (const det of detections) {
-      const [x1, y1, x2, y2] = det.box;
-      ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
-      const label = det.name;
-      const textWidth = ctx.measureText(label).width;
-      ctx.fillRect(x1, Math.max(0, y1 - fontSize - 6), textWidth + 8, fontSize + 6);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(label, x1 + 4, Math.max(fontSize, y1 - 4));
-      ctx.fillStyle = '#ff4d4d';
-    }
+    // Just a card count overlay — no per-card boxes or labels.
+    const count = detections.length;
+    const fontSize = Math.max(28, Math.round(height / 16));
+    ctx.font = `700 ${fontSize}px sans-serif`;
+    const label = `${count} card${count === 1 ? '' : 's'}`;
+    const textWidth = ctx.measureText(label).width;
+    ctx.fillStyle = 'rgba(15, 21, 33, 0.85)';
+    ctx.fillRect(8, 8, textWidth + 16, fontSize + 12);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(label, 16, 8 + fontSize + 2);
     return canvas.toDataURL('image/jpeg', 0.85);
   } finally {
     if (typeof bitmap.close === 'function') bitmap.close();
@@ -143,19 +137,44 @@ function App() {
     );
   };
 
+  const roundSummaries = useMemo(() => {
+    const map = {};
+    rounds.forEach((round) => {
+      let sum = 0;
+      let winner = null;
+      let multiple = false;
+      players.forEach((p) => {
+        const raw = round.scores[p.id];
+        const value = parseFloat(raw);
+        if (raw === '' || raw == null || Number.isNaN(value)) {
+          if (winner === null) winner = p.id;
+          else if (winner !== p.id) multiple = true;
+        } else {
+          sum += value;
+        }
+      });
+      map[round.id] = { sum, winner: multiple ? null : winner };
+    });
+    return map;
+  }, [rounds, players]);
+
   const totals = useMemo(() => {
     const result = {};
     players.forEach((p) => {
       result[p.id] = 0;
     });
     rounds.forEach((round) => {
+      const summary = roundSummaries[round.id];
       players.forEach((p) => {
         const value = parseFloat(round.scores[p.id]);
         if (!Number.isNaN(value)) result[p.id] += value;
       });
+      // The round winner (the only player with no score) gains the absolute
+      // sum of everyone else's penalties.
+      if (summary.winner) result[summary.winner] += Math.abs(summary.sum);
     });
     return result;
-  }, [players, rounds]);
+  }, [players, rounds, roundSummaries]);
 
   const hasData = rounds.some((round) =>
     players.some((p) => {
@@ -164,8 +183,8 @@ function App() {
     })
   );
 
-  const minTotal = hasData
-    ? Math.min(...players.map((p) => totals[p.id]))
+  const maxTotal = hasData
+    ? Math.max(...players.map((p) => totals[p.id]))
     : null;
 
   const resetAll = () => {
@@ -178,7 +197,7 @@ function App() {
   };
 
   const isWinner = (playerId) =>
-    hasData && players.length > 1 && totals[playerId] === minTotal;
+    hasData && players.length > 1 && totals[playerId] === maxTotal;
 
   // ---------- Photo scanning ----------
   const attachVideo = (node) => {
@@ -259,7 +278,7 @@ function App() {
               status: 'done',
               cards: result.cards,
               annotatedPreview,
-              score: computeScore(result.cards),
+              score: -computeScore(result.cards),
             }
           : prev
       );
@@ -279,6 +298,7 @@ function App() {
 
   const applyScannedScore = () => {
     if (!scan || scan.status !== 'done') return;
+    // Cards left in hand are a penalty; scan.score is already negative.
     setScore(scan.roundId, scan.playerId, String(scan.score));
     closeScan();
   };
@@ -297,7 +317,7 @@ function App() {
         </div>
         <div>
           <h1>UNO Scoreboard</h1>
-          <p>Enter the cards left in hand after each round. Lowest total wins.</p>
+          <p>Scan the cards left in hand each round. Highest total wins.</p>
         </div>
       </header>
 
@@ -391,35 +411,53 @@ function App() {
                         </button>
                       </div>
                     </td>
-                    {players.map((p) => (
-                      <td key={p.id}>
-                        <div className="cell">
-                          <input
-                            className="score-input"
-                            type="number"
-                            min="0"
-                            step="1"
-                            inputMode="numeric"
-                            placeholder="—"
-                            aria-label={`${p.name} round ${roundIndex + 1} score`}
-                            value={round.scores[p.id] ?? ''}
-                            onChange={(e) =>
-                              setScore(round.id, p.id, e.target.value)
-                            }
-                          />
-                          <button
-                            className="camera-btn"
-                            title={`Scan ${p.name}'s cards`}
-                            aria-label={`Scan ${p.name}'s cards for round ${
-                              roundIndex + 1
-                            }`}
-                            onClick={() => startCamera(round.id, p.id)}
-                          >
-                            📷
-                          </button>
-                        </div>
-                      </td>
-                    ))}
+                    {players.map((p) => {
+                      const summary = roundSummaries[round.id];
+                      const isRoundWinner = summary.winner === p.id;
+                      return (
+                        <td key={p.id}>
+                          <div className="cell">
+                            {isRoundWinner ? (
+                              <span
+                                className="score-input winner-score"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: '#7dff9a',
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {Math.abs(summary.sum)}
+                              </span>
+                            ) : (
+                              <input
+                                className="score-input"
+                                type="number"
+                                step="1"
+                                inputMode="numeric"
+                                placeholder="—"
+                                aria-label={`${p.name} round ${roundIndex + 1} score`}
+                                value={round.scores[p.id] ?? ''}
+                                onChange={(e) =>
+                                  setScore(round.id, p.id, e.target.value)
+                                }
+                              />
+                            )}
+                            <button
+                              className="camera-btn"
+                              title={`Scan ${p.name}'s cards`}
+                              aria-label={`Scan ${p.name}'s cards for round ${
+                                roundIndex + 1
+                              }`}
+                              onClick={() => startCamera(round.id, p.id)}
+                            >
+                              📷
+                            </button>
+                          </div>
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))
               )}
@@ -544,7 +582,7 @@ function App() {
                     {scan.cards.map((card, i) => (
                       <li key={i}>
                         <span className="card-name">{card}</span>
-                        <span className="card-points">+{scoreForCard(card)}</span>
+                        <span className="card-points">−{scoreForCard(card)}</span>
                       </li>
                     ))}
                   </ul>
@@ -558,7 +596,7 @@ function App() {
                   <input
                     id="scan-score"
                     type="number"
-                    min="0"
+                    step="1"
                     value={scan.score}
                     onChange={(e) =>
                       setScan((prev) =>
