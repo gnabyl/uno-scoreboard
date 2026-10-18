@@ -405,7 +405,7 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
         </div>
       ) : (
         <>
-          <section className="sticky top-0 z-20 mb-4 rounded-2xl border border-edge bg-panel p-4 shadow-panel">
+          <section className="mb-3 shrink-0 rounded-2xl border border-edge bg-panel p-4 shadow-panel">
             <h2 className="sr-only">Leaderboard</h2>
             <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
               {players.map((p, i) => {
@@ -452,11 +452,12 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
             </ul>
           </section>
 
-          {rounds.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-edge bg-panel px-5 py-10 text-center text-sm text-faint">
-              No rounds yet — press “+ New round” to start scoring.
-            </div>
-          ) : (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {rounds.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-edge bg-panel px-5 py-10 text-center text-sm text-faint">
+                No rounds yet — press “+ New round” to start scoring.
+              </div>
+            ) : (
             <ol className="m-0 flex list-none flex-col gap-3 p-0">
               {rounds.map((round, roundIndex) => {
                 const summary = roundSummaries[round.id];
@@ -558,10 +559,11 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
               })}
             </ol>
           )}
+          </div>
         </>
       )}
 
-      <div className="mt-4 mb-10 flex shrink-0 justify-center">
+      <div className="mt-3 mb-10 flex shrink-0 justify-center">
         <button
           className={BTN_ACCENT}
           onClick={handleAddRound}

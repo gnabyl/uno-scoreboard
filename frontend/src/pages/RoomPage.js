@@ -207,8 +207,8 @@ export default function RoomPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-[720px] flex-col px-4 py-6 sm:px-6 sm:py-10">
-      <header className="mb-6 flex items-center gap-3">
+    <div className="mx-auto flex h-dvh w-full max-w-[720px] flex-col overflow-hidden px-4 py-4 sm:px-6 sm:py-6">
+      <header className="mb-4 flex shrink-0 items-center gap-3">
         <Logo />
         <div className="min-w-0 flex-1">
           <Link
@@ -242,7 +242,7 @@ export default function RoomPage() {
         </Link>
       </header>
 
-      <main className="flex flex-1 flex-col">{content}</main>
+      <main className="flex min-h-0 flex-1 flex-col">{content}</main>
     </div>
   );
 }
