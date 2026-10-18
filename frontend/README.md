@@ -68,3 +68,11 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/d
 ### `npm run build` fails to minify
 
 This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+
+## Styling
+
+The UI is styled with [Tailwind CSS](https://tailwindcss.com/). Create React App detects `tailwind.config.js` and runs Tailwind through its built-in PostCSS pipeline, so there is no separate build step.
+
+- Design tokens (colors, shadows, fonts) live in [`tailwind.config.js`](./tailwind.config.js).
+- [`src/index.css`](./src/index.css) loads the Tailwind layers and global body styles.
+- Utility classes are applied directly in JSX. Shared class strings for buttons, score fields, and table cells are defined at the top of [`src/App.js`](./src/App.js).
