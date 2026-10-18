@@ -3,7 +3,6 @@ import { recognizeCards } from './api/cardRecognition';
 import { preloadModel } from './api/localModel';
 import LogPanel from './LogPanel';
 import { computeScore, scoreForCard } from './unoScoring';
-import { Analytics } from "@vercel/analytics/react"
 
 const STORAGE_KEY = 'uno-scoreboard-v1';
 
@@ -123,7 +122,7 @@ function App() {
     preloadStartedRef.current = true;
     preloadModel()
       .then(() => setModelReady(true))
-      .catch(() => { });
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -247,7 +246,7 @@ function App() {
     videoRef.current = node;
     if (node && streamRef.current) {
       node.srcObject = streamRef.current;
-      node.play().catch(() => { });
+      node.play().catch(() => {});
     }
   };
 
@@ -263,7 +262,7 @@ function App() {
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play().catch(() => { });
+        videoRef.current.play().catch(() => {});
       }
     } catch (err) {
       setCameraError(
@@ -316,12 +315,12 @@ function App() {
       setScan((prev) =>
         prev
           ? {
-            ...prev,
-            status: 'done',
-            cards: result.cards,
-            annotatedPreview,
-            score: -computeScore(result.cards),
-          }
+              ...prev,
+              status: 'done',
+              cards: result.cards,
+              annotatedPreview,
+              score: -computeScore(result.cards),
+            }
           : prev
       );
     } catch (err) {
@@ -369,408 +368,409 @@ function App() {
   };
 
   return (
-    <Analytics>
-      <div className="mx-auto flex h-dvh max-w-[960px] flex-col overflow-hidden px-3 pb-9 pt-4 sm:px-5 sm:pt-8">
-        <header className="mb-5 flex shrink-0 items-center gap-3 sm:mb-7 sm:gap-[18px]">
-          <div
-            className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-red to-brand-orange text-[22px] shadow-logo sm:h-[58px] sm:w-[58px] sm:rounded-2xl sm:text-[30px]"
-            aria-hidden="true"
+    <div className="mx-auto flex h-dvh max-w-[960px] flex-col overflow-hidden px-3 pb-9 pt-4 sm:px-5 sm:pt-8">
+      <header className="mb-5 flex shrink-0 items-center gap-3 sm:mb-7 sm:gap-[18px]">
+        <div
+          className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-red to-brand-orange text-[22px] shadow-logo sm:h-[58px] sm:w-[58px] sm:rounded-2xl sm:text-[30px]"
+          aria-hidden="true"
+        >
+          🃏
+        </div>
+        <div>
+          <h1 className="m-0 text-xl font-extrabold tracking-[-0.5px] text-white sm:text-[28px]">
+            UNO Scoreboard
+          </h1>
+          <p className="mt-1 text-xs text-muted sm:text-sm">
+            Scan the cards left in hand each round. Highest total wins.
+          </p>
+        </div>
+      </header>
+
+      <section className="mb-4 flex shrink-0 flex-col items-stretch gap-2.5 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
+        <div className="flex min-w-0 flex-1 gap-2.5 sm:min-w-[260px]">
+          <input
+            type="text"
+            placeholder="Player name"
+            value={newPlayer}
+            maxLength={20}
+            className="min-w-0 flex-1 rounded-xl border border-edge bg-deep px-3.5 py-3 text-base text-white outline-none transition placeholder:text-faint focus:border-accent focus:shadow-[0_0_0_3px_rgba(76,154,255,0.2)] sm:py-[11px] sm:text-sm"
+            onChange={(e) => setNewPlayer(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') addPlayer();
+            }}
+          />
+          <button className={BTN_PRIMARY} onClick={addPlayer}>
+            + Add player
+          </button>
+        </div>
+        <div className="flex gap-2.5">
+          <button
+            className={`${BTN_ACCENT} flex-1 sm:flex-none`}
+            onClick={addRound}
+            disabled={players.length === 0}
           >
-            🃏
-          </div>
-          <div>
-            <h1 className="m-0 text-xl font-extrabold tracking-[-0.5px] text-white sm:text-[28px]">
-              UNO Scoreboard
-            </h1>
-            <p className="mt-1 text-xs text-muted sm:text-sm">
-              Scan the cards left in hand each round. Highest total wins.
-            </p>
-          </div>
-        </header>
+            + New round
+          </button>
+          <button
+            className={`${BTN_GHOST} flex-1 sm:flex-none`}
+            onClick={resetAll}
+          >
+            Reset
+          </button>
+        </div>
+      </section>
 
-        <section className="mb-4 flex shrink-0 flex-col items-stretch gap-2.5 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
-          <div className="flex min-w-0 flex-1 gap-2.5 sm:min-w-[260px]">
-            <input
-              type="text"
-              placeholder="Player name"
-              value={newPlayer}
-              maxLength={20}
-              className="min-w-0 flex-1 rounded-xl border border-edge bg-deep px-3.5 py-3 text-base text-white outline-none transition placeholder:text-faint focus:border-accent focus:shadow-[0_0_0_3px_rgba(76,154,255,0.2)] sm:py-[11px] sm:text-sm"
-              onChange={(e) => setNewPlayer(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') addPlayer();
-              }}
-            />
-            <button className={BTN_PRIMARY} onClick={addPlayer}>
-              + Add player
-            </button>
-          </div>
-          <div className="flex gap-2.5">
-            <button
-              className={`${BTN_ACCENT} flex-1 sm:flex-none`}
-              onClick={addRound}
-              disabled={players.length === 0}
-            >
-              + New round
-            </button>
-            <button
-              className={`${BTN_GHOST} flex-1 sm:flex-none`}
-              onClick={resetAll}
-            >
-              Reset
-            </button>
-          </div>
-        </section>
-
-        {players.length === 0 ? (
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-auto rounded-[20px] border border-dashed border-edge bg-panel px-6 py-16 text-center">
-            <span className="mb-3 block text-[44px]" aria-hidden="true">
-              🎴
-            </span>
-            <h2 className="mb-2 text-2xl font-bold text-white">No players yet</h2>
-            <p className="m-0 text-muted">
-              Add the players sitting around the table to start the scoreboard.
-            </p>
-          </div>
-        ) : (
-          <>
-            <div className="min-h-0 flex-1 overflow-auto rounded-[18px] border border-edge-soft bg-panel shadow-panel">
-              <table className="w-full min-w-[520px] border-separate border-spacing-0 max-sm:min-w-[440px]">
-                <thead>
-                  <tr>
-                    <th className="sticky top-0 z-10 w-[84px] border-b border-edge bg-raised px-2 py-2.5 text-left text-xs font-semibold text-muted sm:w-[120px] sm:px-3.5 sm:py-3 sm:text-[13px]">
-                      Round
+      {players.length === 0 ? (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-auto rounded-[20px] border border-dashed border-edge bg-panel px-6 py-16 text-center">
+          <span className="mb-3 block text-[44px]" aria-hidden="true">
+            🎴
+          </span>
+          <h2 className="mb-2 text-2xl font-bold text-white">No players yet</h2>
+          <p className="m-0 text-muted">
+            Add the players sitting around the table to start the scoreboard.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="min-h-0 flex-1 overflow-auto rounded-[18px] border border-edge-soft bg-panel shadow-panel">
+            <table className="w-full min-w-[520px] border-separate border-spacing-0 max-sm:min-w-[440px]">
+              <thead>
+                <tr>
+                  <th className="sticky top-0 z-10 w-[84px] border-b border-edge bg-raised px-2 py-2.5 text-left text-xs font-semibold text-muted sm:w-[120px] sm:px-3.5 sm:py-3 sm:text-[13px]">
+                    Round
+                  </th>
+                  {players.map((p, i) => (
+                    <th
+                      key={p.id}
+                      className={`group/player sticky top-0 z-10 border-b border-l border-edge bg-raised px-2 py-2.5 text-center before:block before:mx-auto before:mb-2 before:h-1 before:w-[26px] before:rounded-full before:content-[''] sm:px-3.5 sm:before:mb-2.5 sm:before:h-[5px] sm:before:w-[34px] ${PLAYER_COLORS[i % 4]}`}
+                    >
+                      <div className="relative mx-auto w-full max-w-[80px] sm:max-w-[120px]">
+                        <input
+                          className="block w-full border-b border-transparent bg-transparent px-0.5 py-1 text-center text-[13px] font-bold text-white outline-none transition hover:border-accent focus:border-accent sm:text-sm"
+                          value={p.name}
+                          maxLength={20}
+                          aria-label="Player name"
+                          onChange={(e) => renamePlayer(p.id, e.target.value)}
+                        />
+                        <button
+                          className={`${REMOVE_BTN} absolute left-full top-1/2 -translate-y-1/2 group-hover/player:opacity-100`}
+                          title="Remove player"
+                          aria-label={`Remove ${p.name}`}
+                          onClick={() => removePlayer(p.id)}
+                        >
+                          ×
+                        </button>
+                      </div>
                     </th>
-                    {players.map((p, i) => (
-                      <th
-                        key={p.id}
-                        className={`group/player sticky top-0 z-10 border-b border-l border-edge bg-raised px-2 py-2.5 text-center before:block before:mx-auto before:mb-2 before:h-1 before:w-[26px] before:rounded-full before:content-[''] sm:px-3.5 sm:before:mb-2.5 sm:before:h-[5px] sm:before:w-[34px] ${PLAYER_COLORS[i % 4]}`}
-                      >
-                        <div className="relative mx-auto w-full max-w-[80px] sm:max-w-[120px]">
-                          <input
-                            className="block w-full border-b border-transparent bg-transparent px-0.5 py-1 text-center text-[13px] font-bold text-white outline-none transition hover:border-accent focus:border-accent sm:text-sm"
-                            value={p.name}
-                            maxLength={20}
-                            aria-label="Player name"
-                            onChange={(e) => renamePlayer(p.id, e.target.value)}
-                          />
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rounds.length === 0 ? (
+                  <tr>
+                    <td
+                      className={`${CELL} !px-4 !py-10 text-sm text-faint`}
+                      colSpan={players.length + 1}
+                    >
+                      No rounds yet — press “+ New round” to start scoring.
+                    </td>
+                  </tr>
+                ) : (
+                  rounds.map((round, roundIndex) => (
+                    <tr key={round.id} className="hover:bg-white/[0.02]">
+                      <td className="w-[84px] border-t border-edge-soft px-2 py-2.5 text-left text-xs font-semibold text-muted sm:w-[120px] sm:px-3.5 sm:py-3 sm:text-[13px]">
+                        <div className="group/round flex items-center gap-2">
+                          <span>Round {roundIndex + 1}</span>
                           <button
-                            className={`${REMOVE_BTN} absolute left-full top-1/2 -translate-y-1/2 group-hover/player:opacity-100`}
-                            title="Remove player"
-                            aria-label={`Remove ${p.name}`}
-                            onClick={() => removePlayer(p.id)}
+                            className={`${REMOVE_BTN} group-hover/round:opacity-100`}
+                            title="Remove round"
+                            aria-label={`Remove round ${roundIndex + 1}`}
+                            onClick={() => removeRound(round.id)}
                           >
                             ×
                           </button>
                         </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rounds.length === 0 ? (
-                    <tr>
-                      <td
-                        className={`${CELL} !px-4 !py-10 text-sm text-faint`}
-                        colSpan={players.length + 1}
-                      >
-                        No rounds yet — press “+ New round” to start scoring.
                       </td>
-                    </tr>
-                  ) : (
-                    rounds.map((round, roundIndex) => (
-                      <tr key={round.id} className="hover:bg-white/[0.02]">
-                        <td className="w-[84px] border-t border-edge-soft px-2 py-2.5 text-left text-xs font-semibold text-muted sm:w-[120px] sm:px-3.5 sm:py-3 sm:text-[13px]">
-                          <div className="group/round flex items-center gap-2">
-                            <span>Round {roundIndex + 1}</span>
-                            <button
-                              className={`${REMOVE_BTN} group-hover/round:opacity-100`}
-                              title="Remove round"
-                              aria-label={`Remove round ${roundIndex + 1}`}
-                              onClick={() => removeRound(round.id)}
-                            >
-                              ×
-                            </button>
-                          </div>
-                        </td>
-                        {players.map((p) => {
-                          const summary = roundSummaries[round.id];
-                          const isRoundWinner = summary.winner === p.id;
-                          const isNegative = parseFloat(round.scores[p.id]) < 0;
-                          return (
-                            <td
-                              key={p.id}
-                              className={`${CELL} border-t border-edge-soft`}
-                            >
-                              <div className="flex items-center justify-center gap-2">
-                                {isRoundWinner ? (
-                                  <span
-                                    className={`${SCORE_FIELD} inline-flex items-center justify-center font-bold text-[#7dff9a]`}
-                                  >
-                                    {Math.abs(summary.sum)}
-                                  </span>
-                                ) : (
-                                  <input
-                                    className={`${SCORE_INPUT} ${isNegative ? 'text-[#ff4d4d]' : 'text-white'
-                                      }`}
-                                    type="number"
-                                    step="1"
-                                    inputMode="numeric"
-                                    placeholder="—"
-                                    aria-label={`${p.name} round ${roundIndex + 1} score`}
-                                    value={round.scores[p.id] ?? ''}
-                                    onChange={(e) =>
-                                      setScore(round.id, p.id, e.target.value)
-                                    }
-                                  />
-                                )}
-                                <button
-                                  className={CAMERA_BTN}
-                                  title={
-                                    modelReady
-                                      ? `Scan ${p.name}'s cards`
-                                      : 'Detector still loading…'
-                                  }
-                                  aria-label={`Scan ${p.name}'s cards for round ${roundIndex + 1
-                                    }`}
-                                  disabled={!modelReady}
-                                  onClick={() => openCamera(round.id, p.id)}
-                                >
-                                  <span
-                                    className="block -translate-y-[0.22em]"
-                                    aria-hidden="true"
-                                  >
-                                    📷
-                                  </span>
-                                </button>
-                              </div>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td className="w-[84px] border-t-2 border-edge bg-raised px-2 py-3.5 text-left text-base font-extrabold text-white sm:w-[120px] sm:px-3.5">
-                      Total
-                    </td>
-                    {players.map((p) => {
-                      const winner = isWinner(p.id);
-                      const total = totals[p.id];
-                      const totalColor = winner
-                        ? 'text-[#4ad0b9]'
-                        : total < 0
-                          ? 'text-[#ff4d4d]'
-                          : '';
-                      return (
-                        <td
-                          key={p.id}
-                          className={`border-t-2 border-edge px-2 py-3.5 text-center text-base font-extrabold text-white sm:px-3.5 ${winner
-                              ? 'bg-[rgba(42,157,143,0.16)]'
-                              : 'bg-raised'
-                            }`}
-                        >
-                          <div
-                            className={`flex items-center justify-center gap-1.5 ${totalColor}`}
+                      {players.map((p) => {
+                        const summary = roundSummaries[round.id];
+                        const isRoundWinner = summary.winner === p.id;
+                        const isNegative = parseFloat(round.scores[p.id]) < 0;
+                        return (
+                          <td
+                            key={p.id}
+                            className={`${CELL} border-t border-edge-soft`}
                           >
-                            <span>{total}</span>
-                            {winner && (
-                              <span
-                                className="text-[15px]"
-                                aria-label="Leading player"
+                            <div className="flex items-center justify-center gap-2">
+                              {isRoundWinner ? (
+                                <span
+                                  className={`${SCORE_FIELD} inline-flex items-center justify-center font-bold text-[#7dff9a]`}
+                                >
+                                  {Math.abs(summary.sum)}
+                                </span>
+                              ) : (
+                                <input
+                                  className={`${SCORE_INPUT} ${
+                                    isNegative ? 'text-[#ff4d4d]' : 'text-white'
+                                  }`}
+                                  type="number"
+                                  step="1"
+                                  inputMode="numeric"
+                                  placeholder="—"
+                                  aria-label={`${p.name} round ${roundIndex + 1} score`}
+                                  value={round.scores[p.id] ?? ''}
+                                  onChange={(e) =>
+                                    setScore(round.id, p.id, e.target.value)
+                                  }
+                                />
+                              )}
+                              <button
+                                className={CAMERA_BTN}
+                                title={
+                                  modelReady
+                                    ? `Scan ${p.name}'s cards`
+                                    : 'Detector still loading…'
+                                }
+                                aria-label={`Scan ${p.name}'s cards for round ${
+                                  roundIndex + 1
+                                }`}
+                                disabled={!modelReady}
+                                onClick={() => openCamera(round.id, p.id)}
                               >
-                                👑
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </>
-        )}
+                                <span
+                                  className="block -translate-y-[0.22em]"
+                                  aria-hidden="true"
+                                >
+                                  📷
+                                </span>
+                              </button>
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td className="w-[84px] border-t-2 border-edge bg-raised px-2 py-3.5 text-left text-base font-extrabold text-white sm:w-[120px] sm:px-3.5">
+                    Total
+                  </td>
+                  {players.map((p) => {
+                    const winner = isWinner(p.id);
+                    const total = totals[p.id];
+                    const totalColor = winner
+                      ? 'text-[#4ad0b9]'
+                      : total < 0
+                      ? 'text-[#ff4d4d]'
+                      : '';
+                    return (
+                      <td
+                        key={p.id}
+                        className={`border-t-2 border-edge px-2 py-3.5 text-center text-base font-extrabold text-white sm:px-3.5 ${
+                          winner
+                            ? 'bg-[rgba(42,157,143,0.16)]'
+                            : 'bg-raised'
+                        }`}
+                      >
+                        <div
+                          className={`flex items-center justify-center gap-1.5 ${totalColor}`}
+                        >
+                          <span>{total}</span>
+                          {winner && (
+                            <span
+                              className="text-[15px]"
+                              aria-label="Leading player"
+                            >
+                              👑
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </>
+      )}
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleFileChange}
-        />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileChange}
+      />
 
-        <input
-          ref={mobileInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={handleNativeFile}
-        />
+      <input
+        ref={mobileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleNativeFile}
+      />
 
-        {scan && (
+      {scan && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-[rgba(5,8,14,0.7)] p-2.5 backdrop-blur-sm sm:p-5"
+          onClick={closeScan}
+        >
           <div
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-[rgba(5,8,14,0.7)] p-2.5 backdrop-blur-sm sm:p-5"
-            onClick={closeScan}
+            className="relative max-h-[96vh] w-full max-w-none overflow-y-auto rounded-[14px] border border-edge bg-panel p-4 shadow-modal sm:max-h-[90vh] sm:max-w-[420px] sm:rounded-[18px] sm:p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Card scan"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div
-              className="relative max-h-[96vh] w-full max-w-none overflow-y-auto rounded-[14px] border border-edge bg-panel p-4 shadow-modal sm:max-h-[90vh] sm:max-w-[420px] sm:rounded-[18px] sm:p-6"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Card scan"
-              onClick={(e) => e.stopPropagation()}
+            <button
+              className="absolute right-3 top-3 cursor-pointer rounded-lg border-none bg-transparent px-2 py-1 text-[22px] leading-none text-faint hover:bg-edge hover:text-white"
+              onClick={closeScan}
+              aria-label="Close"
             >
-              <button
-                className="absolute right-3 top-3 cursor-pointer rounded-lg border-none bg-transparent px-2 py-1 text-[22px] leading-none text-faint hover:bg-edge hover:text-white"
-                onClick={closeScan}
-                aria-label="Close"
-              >
-                ×
-              </button>
+              ×
+            </button>
 
-              {scan.status === 'capturing' && (
-                <div className="flex flex-col gap-3.5">
-                  <video
-                    ref={attachVideo}
-                    className="aspect-[4/3] w-full rounded-xl border border-edge bg-black object-cover"
-                    playsInline
-                    muted
-                  />
-                  {cameraError ? (
-                    <p className="m-0 text-center text-sm text-[#ffb3b3]">
-                      {cameraError}
-                    </p>
-                  ) : (
-                    <p className="m-0 text-center text-sm text-muted">
-                      {modelReady
-                        ? 'Aim at the cards, then capture.'
-                        : 'Loading card detector…'}
-                    </p>
-                  )}
-                  <div className="flex justify-between gap-2.5 max-sm:flex-wrap max-sm:[&>button]:min-h-12 max-sm:[&>button]:text-[15px] [&>button]:flex-1">
-                    <button className={BTN_GHOST} onClick={closeScan}>
-                      Cancel
-                    </button>
-                    <button
-                      className={BTN_GHOST}
-                      disabled={!modelReady}
-                      onClick={() => {
-                        if (fileInputRef.current) {
-                          fileInputRef.current.value = '';
-                          fileInputRef.current.click();
-                        }
-                      }}
-                    >
-                      Upload image
-                    </button>
-                    <button
-                      className={`${BTN_ACCENT} flex items-center justify-center gap-2`}
-                      onClick={capturePhoto}
-                      disabled={!!cameraError || !modelReady}
-                    >
-                      <span className="text-base leading-none" aria-hidden="true">
-                        ⏺
-                      </span>
-                      Capture
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {scan.status === 'loading' && (
-                <div className="flex flex-col items-center gap-4 py-6 text-muted">
-                  <div className="h-10 w-10 animate-spin rounded-full border-4 border-edge border-t-accent [animation-duration:0.8s]" />
-                  <p className="m-0">Recognizing cards…</p>
-                </div>
-              )}
-
-              {scan.status === 'error' && (
-                <div className="flex flex-col items-center gap-3 py-3 text-center text-muted">
-                  <span className="text-[32px]" aria-hidden="true">
-                    ⚠️
-                  </span>
-                  <p className="m-0">{scan.error}</p>
+            {scan.status === 'capturing' && (
+              <div className="flex flex-col gap-3.5">
+                <video
+                  ref={attachVideo}
+                  className="aspect-[4/3] w-full rounded-xl border border-edge bg-black object-cover"
+                  playsInline
+                  muted
+                />
+                {cameraError ? (
+                  <p className="m-0 text-center text-sm text-[#ffb3b3]">
+                    {cameraError}
+                  </p>
+                ) : (
+                  <p className="m-0 text-center text-sm text-muted">
+                    {modelReady
+                      ? 'Aim at the cards, then capture.'
+                      : 'Loading card detector…'}
+                  </p>
+                )}
+                <div className="flex justify-between gap-2.5 max-sm:flex-wrap max-sm:[&>button]:min-h-12 max-sm:[&>button]:text-[15px] [&>button]:flex-1">
+                  <button className={BTN_GHOST} onClick={closeScan}>
+                    Cancel
+                  </button>
                   <button
-                    className={BTN_PRIMARY}
-                    onClick={() => startCamera(scan.roundId, scan.playerId)}
+                    className={BTN_GHOST}
+                    disabled={!modelReady}
+                    onClick={() => {
+                      if (fileInputRef.current) {
+                        fileInputRef.current.value = '';
+                        fileInputRef.current.click();
+                      }
+                    }}
                   >
-                    Try again
+                    Upload image
+                  </button>
+                  <button
+                    className={`${BTN_ACCENT} flex items-center justify-center gap-2`}
+                    onClick={capturePhoto}
+                    disabled={!!cameraError || !modelReady}
+                  >
+                    <span className="text-base leading-none" aria-hidden="true">
+                      ⏺
+                    </span>
+                    Capture
                   </button>
                 </div>
-              )}
+              </div>
+            )}
 
-              {scan.status === 'done' && (
-                <div>
-                  <h3 className="mb-3.5 text-[17px] font-bold text-white">
-                    Detected cards
-                  </h3>
-                  {scan.previewUrl && (
-                    <img
-                      className="mb-3.5 max-h-[260px] w-full rounded-xl border border-edge bg-deep object-contain"
-                      src={scan.annotatedPreview || scan.previewUrl}
-                      alt="Captured cards"
-                    />
-                  )}
-                  {scan.cards && scan.cards.length > 0 ? (
-                    <ul className="mb-3.5 max-h-[180px] list-none overflow-y-auto p-0">
-                      {scan.cards.map((card, i) => (
-                        <li
-                          key={i}
-                          className="mb-1.5 flex items-center justify-between rounded-[10px] border border-edge-soft bg-deep px-3 py-2.5"
-                        >
-                          <span className="text-sm text-fg">{card}</span>
-                          <span className="text-sm font-bold text-[#ff4d4d]">
-                            −{scoreForCard(card)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="mb-3.5 text-sm text-faint">
-                      No cards were detected. Try taking the photo again.
-                    </p>
-                  )}
-                  <div className="mb-[18px] flex items-center justify-between gap-3">
-                    <label
-                      className="text-sm font-semibold text-muted"
-                      htmlFor="scan-score"
-                    >
-                      Total score
-                    </label>
-                    <input
-                      id="scan-score"
-                      type="number"
-                      step="1"
-                      className="w-[100px] rounded-[10px] border border-edge bg-deep p-2.5 text-center text-base font-bold text-[#ff4d4d] outline-none focus:border-accent"
-                      value={scan.score}
-                      onChange={(e) =>
-                        setScan((prev) =>
-                          prev ? { ...prev, score: Number(e.target.value) } : prev
-                        )
-                      }
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2.5">
-                    <button className={BTN_GHOST} onClick={closeScan}>
-                      Cancel
-                    </button>
-                    <button className={BTN_ACCENT} onClick={applyScannedScore}>
-                      Apply score
-                    </button>
-                  </div>
+            {scan.status === 'loading' && (
+              <div className="flex flex-col items-center gap-4 py-6 text-muted">
+                <div className="h-10 w-10 animate-spin rounded-full border-4 border-edge border-t-accent [animation-duration:0.8s]" />
+                <p className="m-0">Recognizing cards…</p>
+              </div>
+            )}
+
+            {scan.status === 'error' && (
+              <div className="flex flex-col items-center gap-3 py-3 text-center text-muted">
+                <span className="text-[32px]" aria-hidden="true">
+                  ⚠️
+                </span>
+                <p className="m-0">{scan.error}</p>
+                <button
+                  className={BTN_PRIMARY}
+                  onClick={() => startCamera(scan.roundId, scan.playerId)}
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+
+            {scan.status === 'done' && (
+              <div>
+                <h3 className="mb-3.5 text-[17px] font-bold text-white">
+                  Detected cards
+                </h3>
+                {scan.previewUrl && (
+                  <img
+                    className="mb-3.5 max-h-[260px] w-full rounded-xl border border-edge bg-deep object-contain"
+                    src={scan.annotatedPreview || scan.previewUrl}
+                    alt="Captured cards"
+                  />
+                )}
+                {scan.cards && scan.cards.length > 0 ? (
+                  <ul className="mb-3.5 max-h-[180px] list-none overflow-y-auto p-0">
+                    {scan.cards.map((card, i) => (
+                      <li
+                        key={i}
+                        className="mb-1.5 flex items-center justify-between rounded-[10px] border border-edge-soft bg-deep px-3 py-2.5"
+                      >
+                        <span className="text-sm text-fg">{card}</span>
+                        <span className="text-sm font-bold text-[#ff4d4d]">
+                          −{scoreForCard(card)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mb-3.5 text-sm text-faint">
+                    No cards were detected. Try taking the photo again.
+                  </p>
+                )}
+                <div className="mb-[18px] flex items-center justify-between gap-3">
+                  <label
+                    className="text-sm font-semibold text-muted"
+                    htmlFor="scan-score"
+                  >
+                    Total score
+                  </label>
+                  <input
+                    id="scan-score"
+                    type="number"
+                    step="1"
+                    className="w-[100px] rounded-[10px] border border-edge bg-deep p-2.5 text-center text-base font-bold text-[#ff4d4d] outline-none focus:border-accent"
+                    value={scan.score}
+                    onChange={(e) =>
+                      setScan((prev) =>
+                        prev ? { ...prev, score: Number(e.target.value) } : prev
+                      )
+                    }
+                  />
                 </div>
-              )}
-            </div>
+                <div className="flex justify-end gap-2.5">
+                  <button className={BTN_GHOST} onClick={closeScan}>
+                    Cancel
+                  </button>
+                  <button className={BTN_ACCENT} onClick={applyScannedScore}>
+                    Apply score
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
+      )}
 
-        <LogPanel />
-      </div>
-    </Analytics>
+      <LogPanel />
+    </div>
   );
 }
 
