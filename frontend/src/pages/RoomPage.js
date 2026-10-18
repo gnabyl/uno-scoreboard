@@ -3,10 +3,10 @@ import { Link, useParams } from 'react-router-dom';
 import {
   getRoom,
   joinRoom,
-  kickPlayer,
   normalizeRoomCode,
   subscribeToRoom,
 } from '../api/rooms';
+import RoomBoard from '../RoomBoard';
 import { describeRoomError } from '../lib/roomCode';
 import {
   BTN_ACCENT,
@@ -17,13 +17,6 @@ import {
   INPUT,
   Logo,
 } from '../components/ui';
-
-const PLAYER_DOTS = [
-  'bg-brand-red',
-  'bg-brand-orange',
-  'bg-brand-teal',
-  'bg-brand-blue',
-];
 
 export default function RoomPage() {
   const { code: routeCode } = useParams();
@@ -97,24 +90,6 @@ export default function RoomPage() {
       await refresh();
     } catch (err) {
       setError(describeRoomError(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleKick = async (player) => {
-    if (!window.confirm(`Kick ${player.name}? Their scores will be removed.`)) {
-      return;
-    }
-
-    setBusy(true);
-    setError(null);
-    try {
-      await kickPlayer(code, player.id, snapshot.version);
-      await refresh();
-    } catch (err) {
-      setError(describeRoomError(err));
-      await refresh();
     } finally {
       setBusy(false);
     }
@@ -238,62 +213,11 @@ export default function RoomPage() {
           </p>
         </section>
 
-        <section className={`${CARD} mt-4`}>
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="m-0 text-lg font-bold text-white">Players</h2>
-            <span className="text-sm text-muted">{snapshot.players.length}</span>
-          </div>
-          {snapshot.players.length === 0 ? (
-            <p className="m-0 mt-3 text-sm text-faint">No players yet.</p>
-          ) : (
-            <ul className="m-0 mt-3 flex list-none flex-wrap gap-2 p-0">
-              {snapshot.players.map((player, index) => (
-                <li
-                  key={player.id}
-                  className="flex items-center gap-2 rounded-full border border-edge bg-raised py-1.5 pl-3 pr-2 text-sm text-fg"
-                >
-                  <span
-                    className={`h-2.5 w-2.5 rounded-full ${
-                      PLAYER_DOTS[index % PLAYER_DOTS.length]
-                    }`}
-                    aria-hidden="true"
-                  />
-                  <span>{player.name}</span>
-                  {player.id === snapshot.me ? (
-                    <span className="text-[11px] font-semibold uppercase tracking-wide text-accent">
-                      you
-                    </span>
-                  ) : (
-                    <button
-                      className="ml-auto rounded-md border-none bg-transparent px-1.5 text-base leading-none text-faint opacity-70 transition hover:bg-[rgba(255,107,107,0.12)] hover:text-[#ff6b6b] disabled:opacity-40"
-                      title={`Kick ${player.name}`}
-                      aria-label={`Kick ${player.name}`}
-                      disabled={busy}
-                      onClick={() => handleKick(player)}
-                    >
-                      ×
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
         <div className="mt-3">
           <ErrorNotice>{error}</ErrorNotice>
         </div>
 
-        <section className="mt-4 rounded-2xl border border-dashed border-edge bg-panel px-5 py-10 text-center">
-          <span className="text-[34px]" aria-hidden="true">
-            🎴
-          </span>
-          <h2 className="mb-1 mt-2 text-lg font-bold text-white">Board coming next</h2>
-          <p className="m-0 text-sm text-muted">
-            The room, players and live sync are wired up. Round scoring is the next
-            feature.
-          </p>
-        </section>
+        <RoomBoard code={code} snapshot={snapshot} onRefresh={refresh} />
       </>
     );
   }

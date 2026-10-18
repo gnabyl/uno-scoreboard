@@ -3,20 +3,22 @@ import { recognizeCards } from './api/cardRecognition';
 import { preloadModel } from './api/localModel';
 import LogPanel from './LogPanel';
 import { computeScore, scoreForCard } from './unoScoring';
-
-const STORAGE_KEY = 'uno-scoreboard-v1';
+import {
+  addPlayer,
+  addRound,
+  deletePlayer,
+  deleteRound,
+  resetRoom,
+  setScore,
+} from './api/rooms';
+import { describeRoomError } from './lib/roomCode';
+import { BTN_ACCENT, BTN_GHOST, BTN_PRIMARY, ErrorNotice, INPUT } from './components/ui';
 
 const IS_TOUCH = (() => {
   if (typeof window === 'undefined') return false;
-  // `pointer: coarse` is true when the *primary* pointer is touch (phones /
-  // tablets). Touchscreen laptops still report `pointer: fine`, so they keep
-  // the desktop preview instead of falling into the native-capture path.
   if (window.matchMedia) return window.matchMedia('(pointer: coarse)').matches;
   return 'ontouchstart' in window;
 })();
-
-const uid = () =>
-  Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
 const PLAYER_COLORS = [
   'before:bg-brand-red',
@@ -26,12 +28,6 @@ const PLAYER_COLORS = [
 ];
 
 const CELL = 'px-2 py-2.5 text-center sm:px-3.5 sm:py-3';
-
-const BTN_BASE =
-  'min-h-11 rounded-xl px-4 py-3 text-sm font-semibold transition duration-150 hover:enabled:-translate-y-px hover:enabled:brightness-110 active:enabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 sm:min-h-0 sm:px-[18px] sm:py-[11px]';
-const BTN_PRIMARY = `${BTN_BASE} bg-edge text-white`;
-const BTN_ACCENT = `${BTN_BASE} bg-gradient-to-br from-accent to-brand-violet text-white`;
-const BTN_GHOST = `${BTN_BASE} border border-edge bg-transparent text-muted`;
 
 const REMOVE_BTN =
   'rounded-md border-none bg-transparent p-1 text-xl leading-none text-faint opacity-0 transition hover:bg-[rgba(255,107,107,0.12)] hover:text-[#ff6b6b] max-sm:opacity-100 sm:p-0.5 sm:px-1.5 sm:text-lg';
@@ -43,22 +39,6 @@ const SCORE_INPUT = `${SCORE_FIELD} transition placeholder:font-normal placehold
 const CAMERA_BTN =
   'inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[10px] border border-edge bg-raised text-lg leading-none text-muted transition enabled:hover:border-accent enabled:hover:bg-accent/10 enabled:hover:text-accent disabled:cursor-not-allowed disabled:opacity-45 sm:h-[38px] sm:w-[38px] sm:text-base';
 
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      return {
-        players: Array.isArray(parsed.players) ? parsed.players : [],
-        rounds: Array.isArray(parsed.rounds) ? parsed.rounds : [],
-      };
-    }
-  } catch (err) {
-    // Ignore corrupted storage and start fresh.
-  }
-  return { players: [], rounds: [] };
-}
-
 async function annotatePreview(file, detections, width, height) {
   const bitmap = await createImageBitmap(file);
   try {
@@ -68,7 +48,6 @@ async function annotatePreview(file, detections, width, height) {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(bitmap, 0, 0, width, height);
 
-    // Just a card count overlay — no per-card boxes or labels.
     const count = detections.length;
     const fontSize = Math.max(28, Math.round(height / 16));
     ctx.font = `700 ${fontSize}px sans-serif`;
@@ -84,11 +63,54 @@ async function annotatePreview(file, detections, width, height) {
   }
 }
 
-function Scoreboard() {
-  const initial = useMemo(loadState, []);
-  const [players, setPlayers] = useState(initial.players);
-  const [rounds, setRounds] = useState(initial.rounds);
+const cellString = (value) => (value === null || value === undefined ? '' : String(value));
+
+function ScoreCell({ value, label, onCommit, busy }) {
+  const [draft, setDraft] = useState(cellString(value));
+  const focusedRef = useRef(false);
+
+  useEffect(() => {
+    if (!focusedRef.current) setDraft(cellString(value));
+  }, [value]);
+
+  const commit = () => {
+    focusedRef.current = false;
+    if (draft !== cellString(value)) onCommit(draft);
+  };
+
+  const isNegative = parseFloat(draft) < 0;
+
+  return (
+    <input
+      className={`${SCORE_INPUT} ${isNegative ? 'text-[#ff4d4d]' : 'text-white'}`}
+      type="number"
+      step="1"
+      inputMode="numeric"
+      placeholder="—"
+      aria-label={label}
+      value={draft}
+      disabled={busy}
+      onFocus={() => {
+        focusedRef.current = true;
+      }}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') event.currentTarget.blur();
+      }}
+    />
+  );
+}
+
+export default function RoomBoard({ code, snapshot, onRefresh }) {
+  const players = snapshot.players;
+  const rounds = snapshot.rounds;
+  const version = Number(snapshot.version) || 0;
+  const me = snapshot.me;
+
   const [newPlayer, setNewPlayer] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
 
   // Scan modal state. `null` means the modal is closed.
   const [scan, setScan] = useState(null);
@@ -101,11 +123,6 @@ function Scoreboard() {
   const mobileInputRef = useRef(null);
   const pendingTargetRef = useRef(null);
 
-  // Persist the scoreboard so scores survive a refresh.
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ players, rounds }));
-  }, [players, rounds]);
-
   // Stop the camera if the component unmounts while it is running.
   useEffect(() => {
     return () => {
@@ -115,67 +132,84 @@ function Scoreboard() {
     };
   }, []);
 
-  // Warm up the detector on mount so the first scan doesn't wait on the
-  // model download / session creation.
+  // Warm up the detector so the first scan doesn't wait on the model download.
   useEffect(() => {
     if (preloadStartedRef.current) return;
     preloadStartedRef.current = true;
     preloadModel()
       .then(() => setModelReady(true))
-      .catch(() => { });
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const addPlayer = () => {
+  const runMutation = async (action) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await action();
+      await onRefresh();
+    } catch (err) {
+      setError(describeRoomError(err));
+      await onRefresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleAddPlayer = () => {
     const name = newPlayer.trim();
     if (!name) return;
-    const player = { id: uid(), name };
-    setPlayers((prev) => [...prev, player]);
-    setRounds((prev) =>
-      prev.map((round) => ({
-        ...round,
-        scores: { ...round.scores, [player.id]: '' },
-      }))
-    );
-    setNewPlayer('');
-  };
-
-  const removePlayer = (id) => {
-    setPlayers((prev) => prev.filter((p) => p.id !== id));
-    setRounds((prev) =>
-      prev.map((round) => {
-        const next = { ...round.scores };
-        delete next[id];
-        return { ...round, scores: next };
-      })
-    );
-  };
-
-  const renamePlayer = (id, name) => {
-    setPlayers((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, name } : p))
-    );
-  };
-
-  const addRound = () => {
-    const scores = {};
-    players.forEach((p) => {
-      scores[p.id] = '';
+    runMutation(async () => {
+      await addPlayer(code, name, version);
+      setNewPlayer('');
     });
-    setRounds((prev) => [...prev, { id: uid(), scores }]);
   };
 
-  const removeRound = (id) => {
-    setRounds((prev) => prev.filter((r) => r.id !== id));
+  const handleRemovePlayer = (id) => {
+    const target = players.find((p) => p.id === id);
+    if (
+      target &&
+      !window.confirm(`Remove ${target.name}? They will be kicked and their scores removed.`)
+    ) {
+      return;
+    }
+    runMutation(() => deletePlayer(code, id, version));
   };
 
-  const setScore = (roundId, playerId, value) => {
-    setRounds((prev) =>
-      prev.map((round) =>
-        round.id === roundId
-          ? { ...round, scores: { ...round.scores, [playerId]: value } }
-          : round
-      )
+  const handleAddRound = () => {
+    runMutation(() => addRound(code, version));
+  };
+
+  const handleRemoveRound = (id) => {
+    if (!window.confirm('Remove this round?')) return;
+    runMutation(() => deleteRound(code, id, version));
+  };
+
+  const handleReset = () => {
+    if (
+      window.confirm('Reset the scoreboard? This clears all players and rounds.')
+    ) {
+      runMutation(() => resetRoom(code, version));
+    }
+  };
+
+  const handleSetScore = (roundId, playerId, value) => {
+    const previous = (() => {
+      const round = rounds.find((r) => r.id === roundId);
+      if (!round || !Object.prototype.hasOwnProperty.call(round.scores, playerId)) {
+        return undefined;
+      }
+      return round.scores[playerId];
+    })();
+
+    runMutation(() =>
+      setScore(code, {
+        roundId,
+        playerId,
+        value,
+        baseVersion: version,
+        previousValue: previous,
+      })
     );
   };
 
@@ -188,7 +222,7 @@ function Scoreboard() {
       players.forEach((p) => {
         const raw = round.scores[p.id];
         const value = parseFloat(raw);
-        if (raw === '' || raw == null || Number.isNaN(value)) {
+        if (raw === null || raw === undefined || raw === '' || Number.isNaN(value)) {
           if (winner === null) winner = p.id;
           else if (winner !== p.id) multiple = true;
         } else {
@@ -211,8 +245,6 @@ function Scoreboard() {
         const value = parseFloat(round.scores[p.id]);
         if (!Number.isNaN(value)) result[p.id] += value;
       });
-      // The round winner (the only player with no score) gains the absolute
-      // sum of everyone else's penalties.
       if (summary.winner) result[summary.winner] += Math.abs(summary.sum);
     });
     return result;
@@ -221,23 +253,11 @@ function Scoreboard() {
   const hasData = rounds.some((round) =>
     players.some((p) => {
       const value = round.scores[p.id];
-      return value !== '' && value != null && !Number.isNaN(parseFloat(value));
+      return value !== null && value !== undefined && value !== '' && !Number.isNaN(parseFloat(value));
     })
   );
 
-  const maxTotal = hasData
-    ? Math.max(...players.map((p) => totals[p.id]))
-    : null;
-
-  const resetAll = () => {
-    if (
-      window.confirm('Reset the scoreboard? This clears all players and rounds.')
-    ) {
-      setPlayers([]);
-      setRounds([]);
-    }
-  };
-
+  const maxTotal = hasData ? Math.max(...players.map((p) => totals[p.id])) : null;
   const isWinner = (playerId) =>
     hasData && players.length > 1 && totals[playerId] === maxTotal;
 
@@ -246,7 +266,7 @@ function Scoreboard() {
     videoRef.current = node;
     if (node && streamRef.current) {
       node.srcObject = streamRef.current;
-      node.play().catch(() => { });
+      node.play().catch(() => {});
     }
   };
 
@@ -262,9 +282,9 @@ function Scoreboard() {
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play().catch(() => { });
+        videoRef.current.play().catch(() => {});
       }
-    } catch (err) {
+    } catch {
       setCameraError(
         'Could not access the camera. Please allow camera access, or use “Upload image”.'
       );
@@ -315,12 +335,12 @@ function Scoreboard() {
       setScan((prev) =>
         prev
           ? {
-            ...prev,
-            status: 'done',
-            cards: result.cards,
-            annotatedPreview,
-            score: -computeScore(result.cards),
-          }
+              ...prev,
+              status: 'done',
+              cards: result.cards,
+              annotatedPreview,
+              score: -computeScore(result.cards),
+            }
           : prev
       );
     } catch (err) {
@@ -332,8 +352,6 @@ function Scoreboard() {
     }
   };
 
-  // Opens the camera. On touch devices use the native camera app (better
-  // UX, no permission prompt); on desktop use the in-app live preview.
   const openCamera = (roundId, playerId) => {
     if (IS_TOUCH) {
       pendingTargetRef.current = { roundId, playerId };
@@ -343,12 +361,12 @@ function Scoreboard() {
     }
   };
 
-  const handleFileChange = async (event) => {
+  const handleFileChange = (event) => {
     const file = event.target.files && event.target.files[0];
     if (file && scan) recognizeFileFor(file, scan.roundId, scan.playerId);
   };
 
-  const handleNativeFile = async (event) => {
+  const handleNativeFile = (event) => {
     const file = event.target.files && event.target.files[0];
     const target = pendingTargetRef.current;
     if (file && target) recognizeFileFor(file, target.roundId, target.playerId);
@@ -356,8 +374,7 @@ function Scoreboard() {
 
   const applyScannedScore = () => {
     if (!scan || scan.status !== 'done') return;
-    // Cards left in hand are a penalty; scan.score is already negative.
-    setScore(scan.roundId, scan.playerId, String(scan.score));
+    handleSetScore(scan.roundId, scan.playerId, String(scan.score));
     closeScan();
   };
 
@@ -368,57 +385,43 @@ function Scoreboard() {
   };
 
   return (
-    <div className="mx-auto flex h-dvh max-w-[960px] flex-col overflow-hidden px-3 pb-9 pt-4 sm:px-5 sm:pt-8">
-      <header className="mb-5 flex shrink-0 items-center gap-3 sm:mb-7 sm:gap-[18px]">
-        <div
-          className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-red to-brand-orange text-[22px] shadow-logo sm:h-[58px] sm:w-[58px] sm:rounded-2xl sm:text-[30px]"
-          aria-hidden="true"
-        >
-          🃏
-        </div>
-        <div>
-          <h1 className="m-0 text-xl font-extrabold tracking-[-0.5px] text-white sm:text-[28px]">
-            UNO Scoreboard
-          </h1>
-          <p className="mt-1 text-xs text-muted sm:text-sm">
-            Scan the cards left in hand each round. Highest total wins.
-          </p>
-        </div>
-      </header>
-
-      <section className="mb-4 flex shrink-0 flex-col items-stretch gap-2.5 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
+    <div className="flex min-w-0 flex-1 flex-col">
+      <section className="mb-4 flex shrink-0 flex-col items-stretch gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
         <div className="flex min-w-0 flex-1 gap-2.5 sm:min-w-[260px]">
           <input
             type="text"
             placeholder="Player name"
             value={newPlayer}
             maxLength={20}
-            className="min-w-0 flex-1 rounded-xl border border-edge bg-deep px-3.5 py-3 text-base text-white outline-none transition placeholder:text-faint focus:border-accent focus:shadow-[0_0_0_3px_rgba(76,154,255,0.2)] sm:py-[11px] sm:text-sm"
-            onChange={(e) => setNewPlayer(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') addPlayer();
+            className={INPUT}
+            onChange={(event) => setNewPlayer(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') handleAddPlayer();
             }}
           />
-          <button className={BTN_PRIMARY} onClick={addPlayer}>
+          <button className={BTN_PRIMARY} onClick={handleAddPlayer} disabled={busy}>
             + Add player
           </button>
         </div>
         <div className="flex gap-2.5">
           <button
             className={`${BTN_ACCENT} flex-1 sm:flex-none`}
-            onClick={addRound}
-            disabled={players.length === 0}
+            onClick={handleAddRound}
+            disabled={players.length === 0 || busy}
           >
             + New round
           </button>
-          <button
-            className={`${BTN_GHOST} flex-1 sm:flex-none`}
-            onClick={resetAll}
-          >
+          <button className={`${BTN_GHOST} flex-1 sm:flex-none`} onClick={handleReset} disabled={busy}>
             Reset
           </button>
         </div>
       </section>
+
+      {error && (
+        <div className="mb-4">
+          <ErrorNotice>{error}</ErrorNotice>
+        </div>
+      )}
 
       {players.length === 0 ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-auto rounded-[20px] border border-dashed border-edge bg-panel px-6 py-16 text-center">
@@ -431,166 +434,145 @@ function Scoreboard() {
           </p>
         </div>
       ) : (
-        <>
-          <div className="min-h-0 flex-1 overflow-auto rounded-[18px] border border-edge-soft bg-panel shadow-panel">
-            <table className="w-full min-w-[520px] border-separate border-spacing-0 max-sm:min-w-[440px]">
-              <thead>
-                <tr>
-                  <th className="sticky top-0 z-10 w-[84px] border-b border-edge bg-raised px-2 py-2.5 text-left text-xs font-semibold text-muted sm:w-[120px] sm:px-3.5 sm:py-3 sm:text-[13px]">
-                    Round
+        <div className="min-h-0 flex-1 overflow-auto rounded-[18px] border border-edge-soft bg-panel shadow-panel">
+          <table className="w-full min-w-[520px] border-separate border-spacing-0 max-sm:min-w-[440px]">
+            <thead>
+              <tr>
+                <th className="sticky top-0 z-10 w-[84px] border-b border-edge bg-raised px-2 py-2.5 text-left text-xs font-semibold text-muted sm:w-[120px] sm:px-3.5 sm:py-3 sm:text-[13px]">
+                  Round
+                </th>
+                {players.map((p, i) => (
+                  <th
+                    key={p.id}
+                    className={`group/player sticky top-0 z-10 border-b border-l border-edge bg-raised px-2 py-2.5 text-center before:block before:mx-auto before:mb-2 before:h-1 before:w-[26px] before:rounded-full before:content-[''] sm:px-3.5 sm:before:mb-2.5 sm:before:h-[5px] sm:before:w-[34px] ${PLAYER_COLORS[i % 4]}`}
+                  >
+                    <div className="relative mx-auto w-full max-w-[80px] sm:max-w-[120px]">
+                      <span className="block truncate px-0.5 py-1 text-center text-[13px] font-bold text-white sm:text-sm">
+                        {p.name}
+                      </span>
+                      {p.id === me && (
+                        <span className="block text-[10px] font-semibold uppercase tracking-wide text-accent">
+                          you
+                        </span>
+                      )}
+                      <button
+                        className={`${REMOVE_BTN} absolute left-full top-1/2 -translate-y-1/2 group-hover/player:opacity-100`}
+                        title={`Remove ${p.name}`}
+                        aria-label={`Remove ${p.name}`}
+                        disabled={busy}
+                        onClick={() => handleRemovePlayer(p.id)}
+                      >
+                        ×
+                      </button>
+                    </div>
                   </th>
-                  {players.map((p, i) => (
-                    <th
-                      key={p.id}
-                      className={`group/player sticky top-0 z-10 border-b border-l border-edge bg-raised px-2 py-2.5 text-center before:block before:mx-auto before:mb-2 before:h-1 before:w-[26px] before:rounded-full before:content-[''] sm:px-3.5 sm:before:mb-2.5 sm:before:h-[5px] sm:before:w-[34px] ${PLAYER_COLORS[i % 4]}`}
-                    >
-                      <div className="relative mx-auto w-full max-w-[80px] sm:max-w-[120px]">
-                        <input
-                          className="block w-full border-b border-transparent bg-transparent px-0.5 py-1 text-center text-[13px] font-bold text-white outline-none transition hover:border-accent focus:border-accent sm:text-sm"
-                          value={p.name}
-                          maxLength={20}
-                          aria-label="Player name"
-                          onChange={(e) => renamePlayer(p.id, e.target.value)}
-                        />
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rounds.length === 0 ? (
+                <tr>
+                  <td
+                    className={`${CELL} !px-4 !py-10 text-sm text-faint`}
+                    colSpan={players.length + 1}
+                  >
+                    No rounds yet — press “+ New round” to start scoring.
+                  </td>
+                </tr>
+              ) : (
+                rounds.map((round, roundIndex) => (
+                  <tr key={round.id} className="hover:bg-white/[0.02]">
+                    <td className="w-[84px] border-t border-edge-soft px-2 py-2.5 text-left text-xs font-semibold text-muted sm:w-[120px] sm:px-3.5 sm:py-3 sm:text-[13px]">
+                      <div className="group/round flex items-center gap-2">
                         <button
-                          className={`${REMOVE_BTN} absolute left-full top-1/2 -translate-y-1/2 group-hover/player:opacity-100`}
-                          title="Remove player"
-                          aria-label={`Remove ${p.name}`}
-                          onClick={() => removePlayer(p.id)}
+                          className={`${REMOVE_BTN} group-hover/round:opacity-100`}
+                          title="Remove round"
+                          aria-label={`Remove round ${roundIndex + 1}`}
+                          disabled={busy}
+                          onClick={() => handleRemoveRound(round.id)}
                         >
                           ×
                         </button>
+                        <span>{roundIndex + 1}</span>
                       </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rounds.length === 0 ? (
-                  <tr>
-                    <td
-                      className={`${CELL} !px-4 !py-10 text-sm text-faint`}
-                      colSpan={players.length + 1}
-                    >
-                      No rounds yet — press “+ New round” to start scoring.
                     </td>
-                  </tr>
-                ) : (
-                  rounds.map((round, roundIndex) => (
-                    <tr key={round.id} className="hover:bg-white/[0.02]">
-                      <td className="w-[84px] border-t border-edge-soft px-2 py-2.5 text-left text-xs font-semibold text-muted sm:w-[120px] sm:px-3.5 sm:py-3 sm:text-[13px]">
-                        <div className="group/round flex items-center gap-2">
-                          <button
-                            className={`${REMOVE_BTN} group-hover/round:opacity-100`}
-                            title="Remove round"
-                            aria-label={`Remove round ${roundIndex + 1}`}
-                            onClick={() => removeRound(round.id)}
-                          >
-                            ×
-                          </button>
-                          <span>{roundIndex + 1}</span>
-                        </div>
-                      </td>
-                      {players.map((p) => {
-                        const summary = roundSummaries[round.id];
-                        const isRoundWinner = summary.winner === p.id;
-                        const isNegative = parseFloat(round.scores[p.id]) < 0;
-                        return (
-                          <td
-                            key={p.id}
-                            className={`${CELL} border-t border-edge-soft`}
-                          >
-                            <div className="flex items-center justify-center gap-2">
-                              {isRoundWinner ? (
-                                <span
-                                  className={`${SCORE_FIELD} inline-flex items-center justify-center font-bold text-[#7dff9a]`}
-                                >
-                                  {Math.abs(summary.sum)}
-                                </span>
-                              ) : (
-                                <input
-                                  className={`${SCORE_INPUT} ${isNegative ? 'text-[#ff4d4d]' : 'text-white'
-                                    }`}
-                                  type="number"
-                                  step="1"
-                                  inputMode="numeric"
-                                  placeholder="—"
-                                  aria-label={`${p.name} round ${roundIndex + 1} score`}
-                                  value={round.scores[p.id] ?? ''}
-                                  onChange={(e) =>
-                                    setScore(round.id, p.id, e.target.value)
-                                  }
-                                />
-                              )}
-                              <button
-                                className={CAMERA_BTN}
-                                title={
-                                  modelReady
-                                    ? `Scan ${p.name}'s cards`
-                                    : 'Detector still loading…'
-                                }
-                                aria-label={`Scan ${p.name}'s cards for round ${roundIndex + 1
-                                  }`}
-                                disabled={!modelReady}
-                                onClick={() => openCamera(round.id, p.id)}
+                    {players.map((p) => {
+                      const summary = roundSummaries[round.id];
+                      const isRoundWinner = summary.winner === p.id;
+                      const raw = round.scores[p.id];
+                      return (
+                        <td key={p.id} className={`${CELL} border-t border-edge-soft`}>
+                          <div className="flex items-center justify-center gap-2">
+                            {isRoundWinner ? (
+                              <span
+                                className={`${SCORE_FIELD} inline-flex items-center justify-center font-bold text-[#7dff9a]`}
                               >
-                                <span
-                                  className="block -translate-y-[0.22em]"
-                                  aria-hidden="true"
-                                >
-                                  📷
-                                </span>
-                              </button>
-                            </div>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td className="sticky bottom-0 w-[84px] border-t-2 border-edge bg-raised px-2 py-3.5 text-left text-base font-extrabold text-white sm:w-[120px] sm:px-3.5">
-                    Total
-                  </td>
-                  {players.map((p) => {
-                    const winner = isWinner(p.id);
-                    const total = totals[p.id];
-                    const totalColor = winner
-                      ? 'text-[#4ad0b9]'
-                      : total < 0
-                        ? 'text-[#ff4d4d]'
-                        : '';
-                    return (
-                      <td
-                        key={p.id}
-                        className={`sticky bottom-0 ` + `border-t-2 border-edge px-2 py-3.5 text-center text-base font-extrabold text-white sm:px-3.5 ${winner
-                          ? 'bg-[rgba(42,157,143,1)]'
-                          : 'bg-raised'
-                          }`}
-                      >
-                        <div
-                          className={`flex items-center justify-center gap-1.5 ${totalColor}`}
-                        >
-                          <span>{total}</span>
-                          {winner && (
-                            <span
-                              className="text-[15px]"
-                              aria-label="Leading player"
+                                {Math.abs(summary.sum)}
+                              </span>
+                            ) : (
+                              <ScoreCell
+                                value={raw}
+                                label={`${p.name} round ${roundIndex + 1} score`}
+                                busy={busy}
+                                onCommit={(value) => handleSetScore(round.id, p.id, value)}
+                              />
+                            )}
+                            <button
+                              className={CAMERA_BTN}
+                              title={
+                                modelReady ? `Scan ${p.name}'s cards` : 'Detector still loading…'
+                              }
+                              aria-label={`Scan ${p.name}'s cards for round ${roundIndex + 1}`}
+                              disabled={!modelReady}
+                              onClick={() => openCamera(round.id, p.id)}
                             >
-                              👑
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </>
+                              <span className="block -translate-y-[0.22em]" aria-hidden="true">
+                                📷
+                              </span>
+                            </button>
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))
+              )}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td className="sticky bottom-0 w-[84px] border-t-2 border-edge bg-raised px-2 py-3.5 text-left text-base font-extrabold text-white sm:w-[120px] sm:px-3.5">
+                  Total
+                </td>
+                {players.map((p) => {
+                  const winner = isWinner(p.id);
+                  const total = totals[p.id];
+                  const totalColor = winner
+                    ? 'text-[#4ad0b9]'
+                    : total < 0
+                      ? 'text-[#ff4d4d]'
+                      : '';
+                  return (
+                    <td
+                      key={p.id}
+                      className={`sticky bottom-0 border-t-2 border-edge px-2 py-3.5 text-center text-base font-extrabold text-white sm:px-3.5 ${
+                        winner ? 'bg-[rgba(42,157,143,1)]' : 'bg-raised'
+                      }`}
+                    >
+                      <div className={`flex items-center justify-center gap-1.5 ${totalColor}`}>
+                        <span>{total}</span>
+                        {winner && (
+                          <span className="text-[15px]" aria-label="Leading player">
+                            👑
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       )}
 
       <input
@@ -620,7 +602,7 @@ function Scoreboard() {
             role="dialog"
             aria-modal="true"
             aria-label="Card scan"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
           >
             <button
               className="absolute right-3 top-3 cursor-pointer rounded-lg border-none bg-transparent px-2 py-1 text-[22px] leading-none text-faint hover:bg-edge hover:text-white"
@@ -639,14 +621,10 @@ function Scoreboard() {
                   muted
                 />
                 {cameraError ? (
-                  <p className="m-0 text-center text-sm text-[#ffb3b3]">
-                    {cameraError}
-                  </p>
+                  <p className="m-0 text-center text-sm text-[#ffb3b3]">{cameraError}</p>
                 ) : (
                   <p className="m-0 text-center text-sm text-muted">
-                    {modelReady
-                      ? 'Aim at the cards, then capture.'
-                      : 'Loading card detector…'}
+                    {modelReady ? 'Aim at the cards, then capture.' : 'Loading card detector…'}
                   </p>
                 )}
                 <div className="flex justify-between gap-2.5 max-sm:flex-wrap max-sm:[&>button]:min-h-12 max-sm:[&>button]:text-[15px] [&>button]:flex-1">
@@ -703,9 +681,7 @@ function Scoreboard() {
 
             {scan.status === 'done' && (
               <div>
-                <h3 className="mb-3.5 text-[17px] font-bold text-white">
-                  Detected cards
-                </h3>
+                <h3 className="mb-3.5 text-[17px] font-bold text-white">Detected cards</h3>
                 {scan.previewUrl && (
                   <img
                     className="mb-3.5 max-h-[260px] w-full rounded-xl border border-edge bg-deep object-contain"
@@ -733,10 +709,7 @@ function Scoreboard() {
                   </p>
                 )}
                 <div className="mb-[18px] flex items-center justify-between gap-3">
-                  <label
-                    className="text-sm font-semibold text-muted"
-                    htmlFor="scan-score"
-                  >
+                  <label className="text-sm font-semibold text-muted" htmlFor="scan-score">
                     Total score
                   </label>
                   <input
@@ -745,9 +718,9 @@ function Scoreboard() {
                     step="1"
                     className="w-[100px] rounded-[10px] border border-edge bg-deep p-2.5 text-center text-base font-bold text-[#ff4d4d] outline-none focus:border-accent"
                     value={scan.score}
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setScan((prev) =>
-                        prev ? { ...prev, score: Number(e.target.value) } : prev
+                        prev ? { ...prev, score: Number(event.target.value) } : prev
                       )
                     }
                   />
@@ -770,5 +743,3 @@ function Scoreboard() {
     </div>
   );
 }
-
-export default Scoreboard;
