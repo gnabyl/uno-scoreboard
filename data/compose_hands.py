@@ -318,13 +318,18 @@ def make_hand(card_paths, args):
         scale = card_h / h
         card = card.resize((round(w * scale), round(card_h)), Image.Resampling.BILINEAR)
 
-        # Marker covering the top-left corner region of the card.
+        # Annotation marker. `--full-card` covers the whole card (one box per
+        # card, avoiding double detection on fully-visible cards whose two
+        # corners show the same number); otherwise only the top-left corner.
         mw, mh = card.size
         marker = Image.new("RGBA", (mw, mh), (0, 0, 0, 0))
-        cw = max(1, round(mw * args.corner_w))
-        ch = max(1, round(mh * args.corner_h))
-        ox = round(mw * args.corner_x)
-        oy = round(mh * args.corner_y)
+        if args.full_card:
+            cw, ch, ox, oy = mw, mh, 0, 0
+        else:
+            cw = max(1, round(mw * args.corner_w))
+            ch = max(1, round(mh * args.corner_h))
+            ox = round(mw * args.corner_x)
+            oy = round(mh * args.corner_y)
         marker.paste(Image.new("RGBA", (cw, ch), (255, 255, 255, 255)), (ox, oy))
 
         pad, coeffs = random_perspective(card.size, args.warp)
@@ -474,6 +479,11 @@ def main():
         type=float,
         default=0.05,
         help="top-left corner box top offset as a fraction of card height",
+    )
+    ap.add_argument(
+        "--full-card",
+        action="store_true",
+        help="annotate the whole card (one box per card) instead of just the top-left corner",
     )
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument(
