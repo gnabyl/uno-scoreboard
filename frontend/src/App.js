@@ -3,6 +3,7 @@ import { recognizeCards } from './api/cardRecognition';
 import { preloadModel } from './api/localModel';
 import LogPanel from './LogPanel';
 import { computeScore, scoreForCard } from './unoScoring';
+import { Analytics } from "@vercel/analytics/react"
 
 const STORAGE_KEY = 'uno-scoreboard-v1';
 
@@ -122,7 +123,7 @@ function App() {
     preloadStartedRef.current = true;
     preloadModel()
       .then(() => setModelReady(true))
-      .catch(() => {});
+      .catch(() => { });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -246,7 +247,7 @@ function App() {
     videoRef.current = node;
     if (node && streamRef.current) {
       node.srcObject = streamRef.current;
-      node.play().catch(() => {});
+      node.play().catch(() => { });
     }
   };
 
@@ -262,7 +263,7 @@ function App() {
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play().catch(() => {});
+        videoRef.current.play().catch(() => { });
       }
     } catch (err) {
       setCameraError(
@@ -315,12 +316,12 @@ function App() {
       setScan((prev) =>
         prev
           ? {
-              ...prev,
-              status: 'done',
-              cards: result.cards,
-              annotatedPreview,
-              score: -computeScore(result.cards),
-            }
+            ...prev,
+            status: 'done',
+            cards: result.cards,
+            annotatedPreview,
+            score: -computeScore(result.cards),
+          }
           : prev
       );
     } catch (err) {
@@ -369,6 +370,7 @@ function App() {
 
   return (
     <div className="mx-auto flex h-dvh max-w-[960px] flex-col overflow-hidden px-3 pb-9 pt-4 sm:px-5 sm:pt-8">
+      <Analytics />
       <header className="mb-5 flex shrink-0 items-center gap-3 sm:mb-7 sm:gap-[18px]">
         <div
           className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-red to-brand-orange text-[22px] shadow-logo sm:h-[58px] sm:w-[58px] sm:rounded-2xl sm:text-[30px]"
@@ -509,9 +511,8 @@ function App() {
                                 </span>
                               ) : (
                                 <input
-                                  className={`${SCORE_INPUT} ${
-                                    isNegative ? 'text-[#ff4d4d]' : 'text-white'
-                                  }`}
+                                  className={`${SCORE_INPUT} ${isNegative ? 'text-[#ff4d4d]' : 'text-white'
+                                    }`}
                                   type="number"
                                   step="1"
                                   inputMode="numeric"
@@ -530,9 +531,8 @@ function App() {
                                     ? `Scan ${p.name}'s cards`
                                     : 'Detector still loading…'
                                 }
-                                aria-label={`Scan ${p.name}'s cards for round ${
-                                  roundIndex + 1
-                                }`}
+                                aria-label={`Scan ${p.name}'s cards for round ${roundIndex + 1
+                                  }`}
                                 disabled={!modelReady}
                                 onClick={() => openCamera(round.id, p.id)}
                               >
@@ -562,16 +562,15 @@ function App() {
                     const totalColor = winner
                       ? 'text-[#4ad0b9]'
                       : total < 0
-                      ? 'text-[#ff4d4d]'
-                      : '';
+                        ? 'text-[#ff4d4d]'
+                        : '';
                     return (
                       <td
                         key={p.id}
-                        className={`border-t-2 border-edge px-2 py-3.5 text-center text-base font-extrabold text-white sm:px-3.5 ${
-                          winner
+                        className={`border-t-2 border-edge px-2 py-3.5 text-center text-base font-extrabold text-white sm:px-3.5 ${winner
                             ? 'bg-[rgba(42,157,143,0.16)]'
                             : 'bg-raised'
-                        }`}
+                          }`}
                       >
                         <div
                           className={`flex items-center justify-center gap-1.5 ${totalColor}`}
