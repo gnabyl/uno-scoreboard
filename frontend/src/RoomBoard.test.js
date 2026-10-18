@@ -62,3 +62,20 @@ test('has no add-player or reset controls', () => {
   expect(screen.queryByRole('button', { name: /reset/i })).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: /new round/i })).toBeInTheDocument();
 });
+
+test('collapses older rounds and keeps the newest open', () => {
+  const twoRounds = {
+    version: 4,
+    me: 'p1',
+    players: [{ id: 'p1', name: 'Alice', seat: 1 }],
+    rounds: [
+      { id: 'r1', seq: 1, scores: { p1: 10 } },
+      { id: 'r2', seq: 2, scores: { p1: 5 } },
+    ],
+  };
+
+  render(<RoomBoard code="ABCDEFGH" snapshot={twoRounds} onRefresh={() => {}} />);
+
+  expect(screen.queryByLabelText('Alice round 1 score')).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Alice round 2 score')).toBeInTheDocument();
+});
