@@ -54,3 +54,11 @@ test('commits a score edit on blur', () => {
     previousValue: 10,
   });
 });
+
+test('has no add-player or reset controls', () => {
+  render(<RoomBoard code="ABCDEFGH" snapshot={snapshot} onRefresh={() => {}} />);
+
+  expect(screen.queryByPlaceholderText('Player name')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /reset/i })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /new round/i })).toBeInTheDocument();
+});

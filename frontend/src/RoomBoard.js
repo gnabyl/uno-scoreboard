@@ -4,15 +4,13 @@ import { preloadModel } from './api/localModel';
 import LogPanel from './LogPanel';
 import { computeScore, scoreForCard } from './unoScoring';
 import {
-  addPlayer,
   addRound,
   deletePlayer,
   deleteRound,
-  resetRoom,
   setScore,
 } from './api/rooms';
 import { describeRoomError } from './lib/roomCode';
-import { BTN_ACCENT, BTN_GHOST, BTN_PRIMARY, ErrorNotice, INPUT } from './components/ui';
+import { BTN_ACCENT, BTN_GHOST, BTN_PRIMARY, ErrorNotice } from './components/ui';
 
 const IS_TOUCH = (() => {
   if (typeof window === 'undefined') return false;
@@ -108,7 +106,6 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
   const version = Number(snapshot.version) || 0;
   const me = snapshot.me;
 
-  const [newPlayer, setNewPlayer] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -156,15 +153,6 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
     }
   };
 
-  const handleAddPlayer = () => {
-    const name = newPlayer.trim();
-    if (!name) return;
-    runMutation(async () => {
-      await addPlayer(code, name, version);
-      setNewPlayer('');
-    });
-  };
-
   const handleRemovePlayer = (id) => {
     const target = players.find((p) => p.id === id);
     if (
@@ -183,14 +171,6 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
   const handleRemoveRound = (id) => {
     if (!window.confirm('Remove this round?')) return;
     runMutation(() => deleteRound(code, id, version));
-  };
-
-  const handleReset = () => {
-    if (
-      window.confirm('Reset the scoreboard? This clears all players and rounds.')
-    ) {
-      runMutation(() => resetRoom(code, version));
-    }
   };
 
   const handleSetScore = (roundId, playerId, value) => {
@@ -386,35 +366,14 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <section className="mb-4 flex shrink-0 flex-col items-stretch gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
-        <div className="flex min-w-0 flex-1 gap-2.5 sm:min-w-[260px]">
-          <input
-            type="text"
-            placeholder="Player name"
-            value={newPlayer}
-            maxLength={20}
-            className={INPUT}
-            onChange={(event) => setNewPlayer(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') handleAddPlayer();
-            }}
-          />
-          <button className={BTN_PRIMARY} onClick={handleAddPlayer} disabled={busy}>
-            + Add player
-          </button>
-        </div>
-        <div className="flex gap-2.5">
-          <button
-            className={`${BTN_ACCENT} flex-1 sm:flex-none`}
-            onClick={handleAddRound}
-            disabled={players.length === 0 || busy}
-          >
-            + New round
-          </button>
-          <button className={`${BTN_GHOST} flex-1 sm:flex-none`} onClick={handleReset} disabled={busy}>
-            Reset
-          </button>
-        </div>
+      <section className="mb-4 flex shrink-0 justify-end">
+        <button
+          className={BTN_ACCENT}
+          onClick={handleAddRound}
+          disabled={players.length === 0 || busy}
+        >
+          + New round
+        </button>
       </section>
 
       {error && (
@@ -430,7 +389,7 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
           </span>
           <h2 className="mb-2 text-2xl font-bold text-white">No players yet</h2>
           <p className="m-0 text-muted">
-            Add the players sitting around the table to start the scoreboard.
+            Share the room link so players can join.
           </p>
         </div>
       ) : (
