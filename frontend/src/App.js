@@ -425,7 +425,7 @@ function App() {
         </div>
       ) : (
         <>
-          <div className="rounded-[18px] border border-edge-soft bg-panel shadow-panel max-sm:overflow-x-auto">
+          <div className="rounded-[18px] border border-edge-soft bg-panel shadow-panel max-sm:max-h-[calc(100dvh-12rem)] max-sm:overflow-auto">
             <table className="w-full min-w-[520px] border-separate border-spacing-0 max-sm:min-w-[440px]">
               <thead>
                 <tr>
@@ -435,18 +435,18 @@ function App() {
                   {players.map((p, i) => (
                     <th
                       key={p.id}
-                      className={`sticky top-0 z-10 border-b border-l border-edge bg-raised px-2 py-2.5 text-center before:block before:mx-auto before:mb-2 before:h-1 before:w-[26px] before:rounded-full before:content-[''] sm:px-3.5 sm:before:mb-2.5 sm:before:h-[5px] sm:before:w-[34px] ${PLAYER_COLORS[i % 4]}`}
+                      className={`group/player sticky top-0 z-10 border-b border-l border-edge bg-raised px-2 py-2.5 text-center before:block before:mx-auto before:mb-2 before:h-1 before:w-[26px] before:rounded-full before:content-[''] sm:px-3.5 sm:before:mb-2.5 sm:before:h-[5px] sm:before:w-[34px] ${PLAYER_COLORS[i % 4]}`}
                     >
-                      <div className="group/player flex items-center justify-center gap-1.5">
+                      <div className="relative mx-auto w-full max-w-[80px] sm:max-w-[120px]">
                         <input
-                          className="w-full max-w-[88px] border-b border-transparent bg-transparent px-0.5 py-1 text-center text-[13px] font-bold text-white outline-none transition hover:border-accent focus:border-accent sm:max-w-[120px] sm:text-sm"
+                          className="block w-full border-b border-transparent bg-transparent px-0.5 py-1 text-center text-[13px] font-bold text-white outline-none transition hover:border-accent focus:border-accent sm:text-sm"
                           value={p.name}
                           maxLength={20}
                           aria-label="Player name"
                           onChange={(e) => renamePlayer(p.id, e.target.value)}
                         />
                         <button
-                          className={`${REMOVE_BTN} group-hover/player:opacity-100`}
+                          className={`${REMOVE_BTN} absolute left-full top-1/2 -translate-y-1/2 group-hover/player:opacity-100`}
                           title="Remove player"
                           aria-label={`Remove ${p.name}`}
                           onClick={() => removePlayer(p.id)}
