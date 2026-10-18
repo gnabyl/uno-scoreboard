@@ -4,6 +4,6 @@
 
 @layer base {
   body {
-    @apply min-h-screen bg-ink font-sans text-fg antialiased;
+    @apply bg-ink font-sans text-fg antialiased;
   }
 }

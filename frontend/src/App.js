@@ -368,8 +368,8 @@ function App() {
   };
 
   return (
-    <div className="mx-auto max-w-[960px] px-3 pt-4 pb-[104px] sm:px-5 sm:pt-8 sm:pb-16">
-      <header className="mb-5 flex items-center gap-3 sm:mb-7 sm:gap-[18px]">
+    <div className="mx-auto flex h-dvh max-w-[960px] flex-col overflow-hidden px-3 pb-9 pt-4 sm:px-5 sm:pt-8">
+      <header className="mb-5 flex shrink-0 items-center gap-3 sm:mb-7 sm:gap-[18px]">
         <div
           className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-red to-brand-orange text-[22px] shadow-logo sm:h-[58px] sm:w-[58px] sm:rounded-2xl sm:text-[30px]"
           aria-hidden="true"
@@ -386,7 +386,7 @@ function App() {
         </div>
       </header>
 
-      <section className="mb-4 flex flex-col items-stretch gap-2.5 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
+      <section className="mb-4 flex shrink-0 flex-col items-stretch gap-2.5 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
         <div className="flex min-w-0 flex-1 gap-2.5 sm:min-w-[260px]">
           <input
             type="text"
@@ -405,6 +405,13 @@ function App() {
         </div>
         <div className="flex gap-2.5">
           <button
+            className={`${BTN_ACCENT} flex-1 sm:flex-none`}
+            onClick={addRound}
+            disabled={players.length === 0}
+          >
+            + New round
+          </button>
+          <button
             className={`${BTN_GHOST} flex-1 sm:flex-none`}
             onClick={resetAll}
           >
@@ -414,7 +421,7 @@ function App() {
       </section>
 
       {players.length === 0 ? (
-        <div className="rounded-[20px] border border-dashed border-edge bg-panel px-6 py-16 text-center">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-auto rounded-[20px] border border-dashed border-edge bg-panel px-6 py-16 text-center">
           <span className="mb-3 block text-[44px]" aria-hidden="true">
             🎴
           </span>
@@ -425,7 +432,7 @@ function App() {
         </div>
       ) : (
         <>
-          <div className="rounded-[18px] border border-edge-soft bg-panel shadow-panel max-sm:max-h-[calc(100dvh-12rem)] max-sm:overflow-auto">
+          <div className="min-h-0 flex-1 overflow-auto rounded-[18px] border border-edge-soft bg-panel shadow-panel">
             <table className="w-full min-w-[520px] border-separate border-spacing-0 max-sm:min-w-[440px]">
               <thead>
                 <tr>
@@ -585,15 +592,6 @@ function App() {
                 </tr>
               </tfoot>
             </table>
-          </div>
-          <div className="mt-3.5">
-            <button
-              className={`${BTN_ACCENT} w-full text-[15px]`}
-              onClick={addRound}
-              disabled={players.length === 0}
-            >
-              + New round
-            </button>
           </div>
         </>
       )}
