@@ -1,27 +1,30 @@
-import { getDownloadUrl } from '@vercel/blob';
+import { issueSignedToken, presignUrl } from '@vercel/blob';
+
+const MODEL_PATH = 'uno-flip-detector.onnx';
 
 export default async function handler(req, res) {
-  // Vercel Blob store subdomain is the store id minus the `store_` prefix,
-  // lowercased. e.g. `store_jUoqfwEFha3GrMGK` -> `juoqfwefha3grmgk`.
-  const store = (process.env.BLOB_STORE_ID || '')
-    .replace(/^store_/, '')
-    .toLowerCase();
   const token = process.env.BLOB_READ_WRITE_TOKEN;
-
-  if (!store || !token) {
-    return res.status(500).json({
-      error: 'Blob env vars missing (BLOB_STORE_ID / BLOB_READ_WRITE_TOKEN)',
-    });
+  if (!token) {
+    return res
+      .status(500)
+      .json({ error: 'BLOB_READ_WRITE_TOKEN env var missing' });
   }
 
-  const url = `https://${store}.private.blob.vercel-storage.com/uno-flip-detector.onnx`;
-
   try {
-    const signedUrl = await getDownloadUrl(url, {
+    // Mint a short-lived read delegation, then presign the GET URL. Note:
+    // `getDownloadUrl` does NOT sign — it only appends ?download=1, so we use
+    // issueSignedToken + presignUrl for private blobs.
+    const signedToken = await issueSignedToken({
       token,
-      expiresIn: 3600, // seconds (1 hour)
+      pathname: MODEL_PATH,
+      operations: ['get'],
     });
-    return res.status(200).json({ url: signedUrl });
+    const { presignedUrl } = await presignUrl(signedToken, {
+      operation: 'get',
+      pathname: MODEL_PATH,
+      access: 'private',
+    });
+    return res.status(200).json({ url: presignedUrl });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to sign model URL' });
   }
