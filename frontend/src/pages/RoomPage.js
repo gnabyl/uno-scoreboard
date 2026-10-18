@@ -217,28 +217,26 @@ export default function RoomPage() {
           >
             UNO Scoreboard
           </Link>
-        </div>
-        {code && (
-          <div className="flex shrink-0 items-center gap-2 rounded-xl border border-edge bg-raised px-3 py-1.5">
-            <span className="font-mono text-sm font-bold tracking-[0.12em] text-white sm:text-base">
-              {code}
-            </span>
-            <div className="flex items-center gap-1">
+          {code && (
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span className="font-mono text-xs font-bold tracking-[0.14em] text-muted sm:text-sm">
+                {code}
+              </span>
               <button
-                className="rounded-lg border-none bg-transparent px-1.5 py-1 text-xs font-semibold text-muted transition hover:text-white"
+                className="rounded border-none bg-transparent p-0 text-[11px] font-semibold text-accent hover:underline"
                 onClick={copyCode}
               >
                 {copied === 'code' ? 'Copied!' : 'Copy code'}
               </button>
               <button
-                className="rounded-lg border-none bg-transparent px-1.5 py-1 text-xs font-semibold text-muted transition hover:text-white"
+                className="rounded border-none bg-transparent p-0 text-[11px] font-semibold text-accent hover:underline"
                 onClick={copyLink}
               >
                 {copied === 'link' ? 'Copied!' : 'Copy link'}
               </button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
         <Link className={`${BTN_GHOST} no-underline`} to="/">
           Leave
         </Link>
