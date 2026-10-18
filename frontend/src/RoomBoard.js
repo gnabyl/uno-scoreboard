@@ -238,7 +238,7 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
       players.forEach((p) => {
         const raw = round.scores[p.id];
         const value = parseFloat(raw);
-        if (raw === null || raw === undefined || raw === '' || Number.isNaN(value)) {
+        if (raw === null || raw === undefined || raw === '' || Number.isNaN(value) || value === 0) {
           if (winner === null) winner = p.id;
           else if (winner !== p.id) multiple = true;
         } else {
