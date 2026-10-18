@@ -3,8 +3,8 @@
 
 Each image picks a random number of cards, a random fan spread angle, a random
 card height, a random background (real photos when available), per-card
-perspective warps, and
-random lighting (brightness/contrast/color). Cards are drawn left-to-right so
+perspective warps, and random lighting (brightness/contrast/color). Cards are
+drawn left-to-right so
 each subsequent card overlaps the previous one, like a hand of cards. YOLO
 labels are written for each card's top-left corner region.
 
@@ -15,15 +15,21 @@ Usage:
 
 import argparse
 import math
+import os
 import random
 import re
+import sys
+import time
+from concurrent.futures import ProcessPoolExecutor
+from functools import lru_cache
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageEnhance
 
-from extract_cards import CARD_NAMES
-
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+
+from extract_cards import CARD_NAMES  # noqa: E402
 LIGHT_DIR = HERE / "cards" / "light"
 DARK_DIR = HERE / "cards" / "dark"
 BACKGROUND_DIR = HERE / "background"
@@ -85,6 +91,18 @@ def load_card_paths(side):
     return paths
 
 
+@lru_cache(maxsize=128)
+def load_sprite(path):
+    """Return a cached decoded card sprite (RGBA)."""
+    return Image.open(path).convert("RGBA")
+
+
+@lru_cache(maxsize=32)
+def load_bg(path):
+    """Return a cached decoded background photo (RGB)."""
+    return Image.open(path).convert("RGB")
+
+
 def class_of_path(path):
     """Map a card file to its pure card type (strips the _NN suffix)."""
     stem = re.sub(r"_\d{2}$", "", path.stem)
@@ -114,7 +132,7 @@ def _cover_crop(img, w, h):
     """Resize a photo to cover the canvas, then take a random crop."""
     iw, ih = img.size
     scale = max(w / iw, h / ih)
-    img = img.resize((round(iw * scale), round(ih * scale)), Image.Resampling.BICUBIC)
+    img = img.resize((round(iw * scale), round(ih * scale)), Image.Resampling.BILINEAR)
     x = random.randint(0, img.width - w)
     y = random.randint(0, img.height - h)
     return img.crop((x, y, x + w, y + h))
@@ -125,7 +143,7 @@ def make_background():
     w, h = CANVAS_W, CANVAS_H
     photos = _photo_paths()
     if photos:
-        return _cover_crop(Image.open(random.choice(photos)).convert("RGB"), w, h)
+        return _cover_crop(load_bg(random.choice(photos)), w, h)
     mode = random.choice(["solid", "gradient", "noise"])
     if mode == "solid":
         return Image.new("RGB", (w, h), _random_color())
@@ -192,7 +210,7 @@ def apply_perspective(img, pad, coeffs):
     padded = Image.new("RGBA", size, (0, 0, 0, 0))
     padded.paste(img, (pad, pad))
     return padded.transform(
-        size, Image.Transform.PERSPECTIVE, coeffs, resample=Image.Resampling.BICUBIC
+        size, Image.Transform.PERSPECTIVE, coeffs, resample=Image.Resampling.BILINEAR
     )
 
 
@@ -211,6 +229,18 @@ def draw_boxes(img, anns):
     for _cls_id, x0, y0, x1, y1 in anns:
         draw.rectangle([x0, y0, x1, y1], outline=(255, 0, 0), width=2)
     return img
+
+
+def write_data_yaml():
+    """Write data.yaml for Ultralytics YOLO training."""
+    lines = [
+        "path: .",
+        "train: hands/images/train",
+        "val: hands/images/val",
+        f"nc: {len(CLASSES)}",
+        f"names: {CLASSES}",
+    ]
+    (HERE / "data.yaml").write_text("\n".join(lines) + "\n")
 
 
 def make_hand(card_paths, args):
@@ -232,13 +262,13 @@ def make_hand(card_paths, args):
 
     # Draw left -> right so each card overlaps the one before it.
     for i, path in enumerate(chosen):
-        card = Image.open(path).convert("RGBA")
+        card = load_sprite(path)
         w, h = card.size
         if min(w, h) < 20:
             continue  # skip degenerate/empty sprites
         cls = class_of_path(path)
         scale = card_h / h
-        card = card.resize((round(w * scale), round(card_h)), Image.Resampling.BICUBIC)
+        card = card.resize((round(w * scale), round(card_h)), Image.Resampling.BILINEAR)
 
         # Marker covering the top-left corner region of the card.
         mw, mh = card.size
@@ -260,8 +290,8 @@ def make_hand(card_paths, args):
         cx = pivot[0] + radius * math.sin(rad)
         cy = pivot[1] - radius * math.cos(rad)
 
-        rotated = card.rotate(-angle, expand=True, resample=Image.Resampling.BICUBIC)
-        rotated_marker = marker.rotate(-angle, expand=True, resample=Image.Resampling.BICUBIC)
+        rotated = card.rotate(-angle, expand=True, resample=Image.Resampling.BILINEAR)
+        rotated_marker = marker.rotate(-angle, expand=True, resample=Image.Resampling.BILINEAR)
         dest = (round(cx - rotated.width / 2), round(cy - rotated.height / 2))
         canvas.alpha_composite(rotated, dest)
 
@@ -282,6 +312,55 @@ def make_hand(card_paths, args):
     bg = background.convert("RGBA")
     bg.alpha_composite(canvas)
     return apply_lighting(bg.convert("RGB")), anns
+
+
+def _generate_task(task):
+    """Generate and save one hand. Runs in a worker process."""
+    k, seed, card_paths, params, img_dirs, lbl_dirs, val_frac, debug_dir = task
+    random.seed(seed)
+    img, anns = make_hand(card_paths, params)
+    split = "val" if random.random() < val_frac else "train"
+    img.save(img_dirs[split] / f"hand_{k:05d}.png")
+    with open(lbl_dirs[split] / f"hand_{k:05d}.txt", "w") as f:
+        for cls_id, x0, y0, x1, y1 in anns:
+            cx = (x0 + x1) / 2 / CANVAS_W
+            cy = (y0 + y1) / 2 / CANVAS_H
+            bw = (x1 - x0) / CANVAS_W
+            bh = (y1 - y0) / CANVAS_H
+            f.write(f"{cls_id} {cx:.6f} {cy:.6f} {bw:.6f} {bh:.6f}\n")
+    if debug_dir is not None:
+        draw_boxes(img, anns).save(debug_dir / f"hand_{k:05d}.png")
+    return k
+
+
+def _run_tasks(tasks, workers, count):
+    """Run task generation with optional multiprocessing and progress."""
+    t0 = time.time()
+    step = max(1, count // 20)
+    done = 0
+    if workers <= 1:
+        for task in tasks:
+            _generate_task(task)
+            done += 1
+            if done % step == 0 or done == count:
+                _print_progress(done, count, t0)
+    else:
+        chunksize = max(1, count // (workers * 4))
+        with ProcessPoolExecutor(max_workers=workers) as ex:
+            for _ in ex.map(_generate_task, tasks, chunksize=chunksize):
+                done += 1
+                if done % step == 0 or done == count:
+                    _print_progress(done, count, t0)
+
+
+def _print_progress(done, total, t0):
+    elapsed = time.time() - t0
+    rate = done / elapsed if elapsed > 0 else 0.0
+    eta = (total - done) / rate if rate > 0 else 0.0
+    print(
+        f"  {done}/{total} ({100 * done / total:.0f}%)  "
+        f"{rate:.1f} hand/s  ETA {eta:.0f}s"
+    )
 
 
 def main():
@@ -328,20 +407,35 @@ def main():
     ap.add_argument(
         "--draw", action="store_true", help="also save debug images with boxes"
     )
+    ap.add_argument(
+        "--val-frac",
+        type=float,
+        default=0.1,
+        help="fraction of images held out for validation",
+    )
+    ap.add_argument(
+        "--workers",
+        type=int,
+        default=os.cpu_count() or 1,
+        help="parallel worker processes (default: all CPU cores)",
+    )
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
     random.seed(args.seed)
 
     out_dir = Path(args.out) if args.out else HERE / "hands"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    for old in out_dir.glob("*.png"):
-        old.unlink()  # remove stale outputs from previous runs
-    for old in out_dir.glob("*.txt"):
-        old.unlink()
+    img_dirs = {s: out_dir / "images" / s for s in ("train", "val")}
+    lbl_dirs = {s: out_dir / "labels" / s for s in ("train", "val")}
+    for d in list(img_dirs.values()) + list(lbl_dirs.values()):
+        d.mkdir(parents=True, exist_ok=True)
+        for old in d.iterdir():
+            if old.is_file():
+                old.unlink()  # remove stale outputs from previous runs
 
     with open(HERE / "classes.txt", "w") as f:
         f.write("\n".join(CLASSES) + "\n")
+    write_data_yaml()
 
     debug_dir = out_dir / "debug" if args.draw else None
     if debug_dir:
@@ -351,18 +445,14 @@ def main():
 
     card_paths = load_card_paths(args.side)
 
+    tasks = []
     for k in range(args.count):
-        img, anns = make_hand(card_paths, args)
-        img.save(out_dir / f"hand_{k:05d}.png")
-        with open(out_dir / f"hand_{k:05d}.txt", "w") as f:
-            for cls_id, x0, y0, x1, y1 in anns:
-                cx = (x0 + x1) / 2 / CANVAS_W
-                cy = (y0 + y1) / 2 / CANVAS_H
-                bw = (x1 - x0) / CANVAS_W
-                bh = (y1 - y0) / CANVAS_H
-                f.write(f"{cls_id} {cx:.6f} {cy:.6f} {bw:.6f} {bh:.6f}\n")
-        if debug_dir:
-            draw_boxes(img, anns).save(debug_dir / f"hand_{k:05d}.png")
+        seed = None if args.seed is None else args.seed + k
+        tasks.append(
+            (k, seed, card_paths, args, img_dirs, lbl_dirs, args.val_frac, debug_dir)
+        )
+
+    _run_tasks(tasks, args.workers, args.count)
 
     print(f"{args.count} hands -> {out_dir}")
 
