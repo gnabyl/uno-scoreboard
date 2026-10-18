@@ -1,2 +1,11 @@
 # Generated card sprites (recreated by data/extract_cards.py)
 data/cards/
+
+# Generated hand compositions and class list (recreated by data/compose_hands.py)
+data/hands/
+data/classes.txt
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
