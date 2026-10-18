@@ -54,6 +54,31 @@ the fresh snapshot. Destructive operations surface `VersionConflictError` so the
 UI can ask for confirmation.
 
 
+## Local development
+
+Run the dev server through the Vercel CLI so the SPA and the serverless
+functions share one origin:
+
+```
+npm run vercel:dev
+```
+
+Then open <http://localhost:5173>. `vercel dev` binds port 5173 and starts
+`npm run dev` (Vite) as its dev command on an internal port — the port is
+passed to Vite through the `$PORT` placeholder in
+[`vercel.json`](./vercel.json), so Vercel and Vite can never disagree about it.
+That means:
+
+- the app is served from 5173, and
+- `/api/model` is handled by the real [`api/model.ts`](./api/model.ts) function,
+  which signs a short-lived URL for the private model blob using
+  `BLOB_READ_WRITE_TOKEN` from `.env`.
+
+Running `npm run dev` on its own starts Vite without the functions. The SPA
+still loads, but `/api/model` resolves to the function's source instead of
+JSON, and there is no `public/model/` copy to fall back to, so card scanning
+cannot load the detector. Use `npm run vercel:dev` for anything that scans.
+
 ## TypeScript
 
 The app is written in TypeScript. `npm run typecheck` runs `tsc --noEmit` over

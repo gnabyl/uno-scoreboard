@@ -22,7 +22,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "vercel:dev": "vercel dev"
+    "vercel:dev": "vercel dev --listen 5173"
   },
   "browserslist": {
     "production": [
