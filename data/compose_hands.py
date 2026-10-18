@@ -231,6 +231,32 @@ def draw_boxes(img, anns):
     return img
 
 
+def rotate_hand(img, anns, angle):
+    """Rotate the card canvas in place by `angle` degrees (PIL convention,
+    counter-clockwise about the image centre) and transform annotation boxes.
+
+    The canvas keeps its size; card pixels rotated past the canvas edge are
+    cropped (realistic partial cards). Annotation boxes are clipped to the
+    canvas, and boxes that fall entirely off-canvas are dropped.
+    """
+    w, h = img.size
+    rotated = img.rotate(angle, resample=Image.Resampling.BILINEAR)
+    theta = math.radians(angle)
+    cos_t, sin_t = math.cos(theta), math.sin(theta)
+    cx, cy = w / 2, h / 2
+    new_anns = []
+    for cls_id, x0, y0, x1, y1 in anns:
+        xs, ys = [], []
+        for x, y in ((x0, y0), (x1, y0), (x0, y1), (x1, y1)):
+            xs.append(cos_t * (x - cx) + sin_t * (y - cy) + cx)
+            ys.append(-sin_t * (x - cx) + cos_t * (y - cy) + cy)
+        nx0, ny0 = max(0.0, min(xs)), max(0.0, min(ys))
+        nx1, ny1 = min(float(w), max(xs)), min(float(h), max(ys))
+        if nx1 > nx0 and ny1 > ny0:
+            new_anns.append((cls_id, nx0, ny0, nx1, ny1))
+    return rotated, new_anns
+
+
 def write_data_yaml():
     """Write data.yaml for Ultralytics YOLO training."""
     lines = [
@@ -310,8 +336,13 @@ def make_hand(card_paths, args):
                 )
 
     bg = background.convert("RGBA")
+    if args.hand_rot > 0:
+        canvas, anns = rotate_hand(
+            canvas, anns, random.uniform(-args.hand_rot, args.hand_rot)
+        )
     bg.alpha_composite(canvas)
-    return apply_lighting(bg.convert("RGB")), anns
+    img = apply_lighting(bg.convert("RGB"))
+    return img, anns
 
 
 def _generate_task(task):
@@ -322,11 +353,12 @@ def _generate_task(task):
     split = "val" if random.random() < val_frac else "train"
     img.save(img_dirs[split] / f"hand_{k:05d}.png")
     with open(lbl_dirs[split] / f"hand_{k:05d}.txt", "w") as f:
+        iw, ih = img.size
         for cls_id, x0, y0, x1, y1 in anns:
-            cx = (x0 + x1) / 2 / CANVAS_W
-            cy = (y0 + y1) / 2 / CANVAS_H
-            bw = (x1 - x0) / CANVAS_W
-            bh = (y1 - y0) / CANVAS_H
+            cx = (x0 + x1) / 2 / iw
+            cy = (y0 + y1) / 2 / ih
+            bw = (x1 - x0) / iw
+            bh = (y1 - y0) / ih
             f.write(f"{cls_id} {cx:.6f} {cy:.6f} {bw:.6f} {bh:.6f}\n")
     if debug_dir is not None:
         draw_boxes(img, anns).save(debug_dir / f"hand_{k:05d}.png")
@@ -378,6 +410,12 @@ def main():
         type=float,
         default=0.0,
         help="max perspective corner shift as a fraction of card size (0 disables)",
+    )
+    ap.add_argument(
+        "--hand-rot",
+        type=float,
+        default=180.0,
+        help="max whole-hand rotation in degrees (uniform; 180 = any orientation incl. upside-down, 0 disables)",
     )
     ap.add_argument(
         "--corner-w",
