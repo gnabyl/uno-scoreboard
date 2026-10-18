@@ -87,6 +87,14 @@ The app is written in TypeScript. `npm run typecheck` runs `tsc --noEmit` over
 point; tighten it incrementally. Test files (`*.test.ts(x)`, `setupTests.ts`)
 are excluded from the typecheck until a test runner is wired up.
 
+The serverless function has its own [`api/tsconfig.json`](./api/tsconfig.json).
+Vercel resolves a tsconfig **from the function's own directory**, so without
+that file `api/model.ts` inherits `module: ESNext` from the app config, Vercel
+transpiles the function to ESM, and the Node.js runtime then loads the emitted
+`api/model.js` as CommonJS and fails with `Cannot use import statement outside
+a module`. Pinning `module: NodeNext` there makes Vercel emit CommonJS for the
+function, since [`package.json`](./package.json) has no `"type": "module"`.
+
 ## Available Scripts
 
 In the project directory, you can run:
