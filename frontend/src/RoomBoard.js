@@ -366,16 +366,6 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <section className="mb-4 flex shrink-0 justify-end">
-        <button
-          className={BTN_ACCENT}
-          onClick={handleAddRound}
-          disabled={players.length === 0 || busy}
-        >
-          + New round
-        </button>
-      </section>
-
       {error && (
         <div className="mb-4">
           <ErrorNotice>{error}</ErrorNotice>
@@ -533,6 +523,16 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
           </table>
         </div>
       )}
+
+      <div className="mt-4 flex shrink-0 justify-center">
+        <button
+          className={BTN_ACCENT}
+          onClick={handleAddRound}
+          disabled={players.length === 0 || busy}
+        >
+          + New round
+        </button>
+      </div>
 
       <input
         ref={fileInputRef}
