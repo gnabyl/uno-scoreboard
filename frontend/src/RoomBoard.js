@@ -386,7 +386,7 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
   };
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {error && (
         <div className="mb-4">
           <ErrorNotice>{error}</ErrorNotice>
