@@ -25,11 +25,6 @@ const PLAYER_COLORS = [
   'before:bg-brand-blue',
 ];
 
-const CELL = 'px-2 py-2.5 text-center sm:px-3.5 sm:py-3';
-
-const REMOVE_BTN =
-  'rounded-md border-none bg-transparent p-1 text-xl leading-none text-faint opacity-0 transition hover:bg-[rgba(255,107,107,0.12)] hover:text-[#ff6b6b] max-sm:opacity-100 sm:p-0.5 sm:px-1.5 sm:text-lg';
-
 const SCORE_FIELD =
   'w-[60px] rounded-[10px] border border-edge bg-deep p-2 text-center text-base font-semibold outline-none sm:w-20 sm:p-2.5';
 const SCORE_INPUT = `${SCORE_FIELD} transition placeholder:font-normal placeholder:text-[#3a4356] focus:border-accent focus:shadow-[0_0_0_3px_rgba(76,154,255,0.18)] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`;
@@ -383,29 +378,34 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
           </p>
         </div>
       ) : (
-        <div className="min-h-0 flex-1 overflow-auto rounded-[18px] border border-edge-soft bg-panel shadow-panel">
-          <table className="w-full min-w-[520px] border-separate border-spacing-0 max-sm:min-w-[440px]">
-            <thead>
-              <tr>
-                <th className="sticky top-0 z-10 w-[84px] border-b border-edge bg-raised px-2 py-2.5 text-left text-xs font-semibold text-muted sm:w-[120px] sm:px-3.5 sm:py-3 sm:text-[13px]">
-                  Round
-                </th>
-                {players.map((p, i) => (
-                  <th
+        <>
+          <section className="mb-4 rounded-2xl border border-edge bg-panel p-4 shadow-panel">
+            <h2 className="sr-only">Leaderboard</h2>
+            <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
+              {players.map((p, i) => {
+                const winner = isWinner(p.id);
+                const total = totals[p.id];
+                return (
+                  <li
                     key={p.id}
-                    className={`group/player sticky top-0 z-10 border-b border-l border-edge bg-raised px-2 py-2.5 text-center before:block before:mx-auto before:mb-2 before:h-1 before:w-[26px] before:rounded-full before:content-[''] sm:px-3.5 sm:before:mb-2.5 sm:before:h-[5px] sm:before:w-[34px] ${PLAYER_COLORS[i % 4]}`}
+                    className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold ${
+                      winner
+                        ? 'border-transparent bg-[rgba(42,157,143,1)] text-white'
+                        : 'border-edge bg-raised text-fg'
+                    }`}
                   >
-                    <div className="relative mx-auto w-full max-w-[80px] sm:max-w-[120px]">
-                      <span className="block truncate px-0.5 py-1 text-center text-[13px] font-bold text-white sm:text-sm">
-                        {p.name}
+                    <span
+                      className={`h-2.5 w-2.5 shrink-0 rounded-full ${PLAYER_COLORS[i % 4]}`}
+                      aria-hidden="true"
+                    />
+                    <span className="max-w-[96px] truncate">{p.name}</span>
+                    {p.id === me ? (
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-accent">
+                        you
                       </span>
-                      {p.id === me && (
-                        <span className="block text-[10px] font-semibold uppercase tracking-wide text-accent">
-                          you
-                        </span>
-                      )}
+                    ) : (
                       <button
-                        className={`${REMOVE_BTN} absolute left-full top-1/2 -translate-y-1/2 group-hover/player:opacity-100`}
+                        className="rounded border-none bg-transparent p-0 text-base leading-none text-faint opacity-70 transition hover:text-[#ff6b6b]"
                         title={`Remove ${p.name}`}
                         aria-label={`Remove ${p.name}`}
                         disabled={busy}
@@ -413,45 +413,62 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
                       >
                         ×
                       </button>
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rounds.length === 0 ? (
-                <tr>
-                  <td
-                    className={`${CELL} !px-4 !py-10 text-sm text-faint`}
-                    colSpan={players.length + 1}
+                    )}
+                    <span className={total < 0 && !winner ? 'text-[#ff4d4d]' : ''}>{total}</span>
+                    {winner && (
+                      <span className="text-[14px]" aria-label="Leading player">
+                        👑
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+
+          {rounds.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-edge bg-panel px-5 py-10 text-center text-sm text-faint">
+              No rounds yet — press “+ New round” to start scoring.
+            </div>
+          ) : (
+            <ol className="m-0 flex list-none flex-col gap-3 p-0">
+              {rounds.map((round, roundIndex) => {
+                const summary = roundSummaries[round.id];
+                return (
+                  <li
+                    key={round.id}
+                    className="rounded-2xl border border-edge bg-panel p-4 shadow-panel"
                   >
-                    No rounds yet — press “+ New round” to start scoring.
-                  </td>
-                </tr>
-              ) : (
-                rounds.map((round, roundIndex) => (
-                  <tr key={round.id} className="hover:bg-white/[0.02]">
-                    <td className="w-[84px] border-t border-edge-soft px-2 py-2.5 text-left text-xs font-semibold text-muted sm:w-[120px] sm:px-3.5 sm:py-3 sm:text-[13px]">
-                      <div className="group/round flex items-center gap-2">
-                        <button
-                          className={`${REMOVE_BTN} group-hover/round:opacity-100`}
-                          title="Remove round"
-                          aria-label={`Remove round ${roundIndex + 1}`}
-                          disabled={busy}
-                          onClick={() => handleRemoveRound(round.id)}
-                        >
-                          ×
-                        </button>
-                        <span>{roundIndex + 1}</span>
-                      </div>
-                    </td>
-                    {players.map((p) => {
-                      const summary = roundSummaries[round.id];
-                      const isRoundWinner = summary.winner === p.id;
-                      const raw = round.scores[p.id];
-                      return (
-                        <td key={p.id} className={`${CELL} border-t border-edge-soft`}>
-                          <div className="flex items-center justify-center gap-2">
+                    <div className="mb-3 flex items-center justify-between">
+                      <span className="text-sm font-bold text-muted">
+                        Round {roundIndex + 1}
+                      </span>
+                      <button
+                        className="rounded border-none bg-transparent p-0 text-lg leading-none text-faint transition hover:text-[#ff6b6b]"
+                        title="Remove round"
+                        aria-label={`Remove round ${roundIndex + 1}`}
+                        disabled={busy}
+                        onClick={() => handleRemoveRound(round.id)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                      {players.map((p, pi) => {
+                        const isRoundWinner = summary.winner === p.id;
+                        const raw = round.scores[p.id];
+                        return (
+                          <li
+                            key={p.id}
+                            className="flex items-center gap-3 rounded-xl border border-edge-soft bg-deep px-3 py-2"
+                          >
+                            <span
+                              className={`h-3 w-3 shrink-0 rounded-full ${PLAYER_COLORS[pi % 4]}`}
+                              aria-hidden="true"
+                            />
+                            <span className="min-w-0 flex-1 truncate text-sm text-fg">
+                              {p.name}
+                            </span>
                             {isRoundWinner ? (
                               <span
                                 className={`${SCORE_FIELD} inline-flex items-center justify-center font-bold text-[#7dff9a]`}
@@ -479,49 +496,16 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
                                 📷
                               </span>
                             </button>
-                          </div>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))
-              )}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td className="sticky bottom-0 w-[84px] border-t-2 border-edge bg-raised px-2 py-3.5 text-left text-base font-extrabold text-white sm:w-[120px] sm:px-3.5">
-                  Total
-                </td>
-                {players.map((p) => {
-                  const winner = isWinner(p.id);
-                  const total = totals[p.id];
-                  const totalColor = winner
-                    ? 'text-[#4ad0b9]'
-                    : total < 0
-                      ? 'text-[#ff4d4d]'
-                      : '';
-                  return (
-                    <td
-                      key={p.id}
-                      className={`sticky bottom-0 border-t-2 border-edge px-2 py-3.5 text-center text-base font-extrabold text-white sm:px-3.5 ${
-                        winner ? 'bg-[rgba(42,157,143,1)]' : 'bg-raised'
-                      }`}
-                    >
-                      <div className={`flex items-center justify-center gap-1.5 ${totalColor}`}>
-                        <span>{total}</span>
-                        {winner && (
-                          <span className="text-[15px]" aria-label="Leading player">
-                            👑
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                  );
-                })}
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </>
       )}
 
       <div className="mt-4 mb-10 flex shrink-0 justify-center">

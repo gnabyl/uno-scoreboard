@@ -30,13 +30,13 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-test('renders players, rounds and totals', () => {
+test('renders players, rounds and leaderboard', () => {
   render(<RoomBoard code="ABCDEFGH" snapshot={snapshot} onRefresh={() => {}} />);
 
-  expect(screen.getByText('Alice')).toBeInTheDocument();
-  expect(screen.getByText('Bob')).toBeInTheDocument();
+  expect(screen.getAllByText('Alice').length).toBeGreaterThan(0);
+  expect(screen.getAllByText('Bob').length).toBeGreaterThan(0);
+  expect(screen.getByText('Round 1')).toBeInTheDocument();
   expect(screen.getByLabelText('Alice round 1 score')).toBeInTheDocument();
-  expect(screen.getByText('Total')).toBeInTheDocument();
 });
 
 test('commits a score edit on blur', () => {
