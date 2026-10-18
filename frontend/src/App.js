@@ -31,7 +31,7 @@ const CELL = 'px-2 py-2.5 text-center sm:px-3.5 sm:py-3';
 const BTN_BASE =
   'min-h-11 rounded-xl px-4 py-3 text-sm font-semibold transition duration-150 hover:enabled:-translate-y-px hover:enabled:brightness-110 active:enabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 sm:min-h-0 sm:px-[18px] sm:py-[11px]';
 const BTN_PRIMARY = `${BTN_BASE} bg-edge text-white`;
-const BTN_ACCENT = `${BTN_BASE} bg-gradient-to-br from-accent to-brand-violet text-white shadow-accent`;
+const BTN_ACCENT = `${BTN_BASE} bg-gradient-to-br from-accent to-brand-violet text-white`;
 const BTN_GHOST = `${BTN_BASE} border border-edge bg-transparent text-muted`;
 
 const REMOVE_BTN =
@@ -482,7 +482,6 @@ function App() {
                     <tr key={round.id} className="hover:bg-white/[0.02]">
                       <td className="w-[84px] border-t border-edge-soft px-2 py-2.5 text-left text-xs font-semibold text-muted sm:w-[120px] sm:px-3.5 sm:py-3 sm:text-[13px]">
                         <div className="group/round flex items-center gap-2">
-                          <span>Round {roundIndex + 1}</span>
                           <button
                             className={`${REMOVE_BTN} group-hover/round:opacity-100`}
                             title="Remove round"
@@ -491,6 +490,7 @@ function App() {
                           >
                             ×
                           </button>
+                          <span>{roundIndex + 1}</span>
                         </div>
                       </td>
                       {players.map((p) => {
@@ -553,7 +553,7 @@ function App() {
               </tbody>
               <tfoot>
                 <tr>
-                  <td className="w-[84px] border-t-2 border-edge bg-raised px-2 py-3.5 text-left text-base font-extrabold text-white sm:w-[120px] sm:px-3.5">
+                  <td className="sticky bottom-0 w-[84px] border-t-2 border-edge bg-raised px-2 py-3.5 text-left text-base font-extrabold text-white sm:w-[120px] sm:px-3.5">
                     Total
                   </td>
                   {players.map((p) => {
@@ -567,9 +567,9 @@ function App() {
                     return (
                       <td
                         key={p.id}
-                        className={`border-t-2 border-edge px-2 py-3.5 text-center text-base font-extrabold text-white sm:px-3.5 ${winner
-                            ? 'bg-[rgba(42,157,143,0.16)]'
-                            : 'bg-raised'
+                        className={`sticky bottom-0 ` + `border-t-2 border-edge px-2 py-3.5 text-center text-base font-extrabold text-white sm:px-3.5 ${winner
+                          ? 'bg-[rgba(42,157,143,1)]'
+                          : 'bg-raised'
                           }`}
                       >
                         <div
