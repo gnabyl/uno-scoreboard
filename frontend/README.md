@@ -18,11 +18,11 @@ write tables directly.
 3. **Set the client env vars** locally in `.env` and in Vercel for every
    environment (the Vercel Supabase integration injects `SUPABASE_URL` and
    `NEXT_PUBLIC_SUPABASE_ANON_KEY`, but Create React App only exposes
-   `REACT_APP_*` names to the browser):
+   `VITE_*` names to the browser):
 
    ```
-   REACT_APP_SUPABASE_URL=...
-   REACT_APP_SUPABASE_ANON_KEY=...
+   VITE_SUPABASE_URL=...
+   VITE_SUPABASE_ANON_KEY=...
    ```
 
 ### How it works

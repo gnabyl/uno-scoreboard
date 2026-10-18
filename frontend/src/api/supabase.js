@@ -1,8 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-// CRA only inlines REACT_APP_* variables into the bundle.
-const url = process.env.REACT_APP_SUPABASE_URL;
-const anonKey = process.env.REACT_APP_SUPABASE_ANON_KEY;
+const url = import.meta.env.VITE_SUPABASE_URL;
+const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const isConfigured = Boolean(url && anonKey);
 
@@ -22,8 +21,9 @@ let sessionPromise = null;
 export function ensureSession() {
   if (!supabase) {
     return Promise.reject(
+      // Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local or the Vercel dashboard.
       new Error(
-        'Supabase is not configured. Set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY.'
+        'backend is not configured'
       )
     );
   }

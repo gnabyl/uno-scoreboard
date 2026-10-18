@@ -38,7 +38,7 @@ const CLASS_NAMES = [
 ];
 
 const MIN_CONFIDENCE = parseFloat(
-  process.env.REACT_APP_MIN_CONFIDENCE || String(DEFAULT_CONFIDENCE)
+  import.meta.env.VITE_MIN_CONFIDENCE || String(DEFAULT_CONFIDENCE)
 );
 
 let sessionPromise = null;
@@ -62,7 +62,7 @@ async function fetchModelBuffer() {
     log('failed to fetch /api/model', { error: err.message });
   }
   // Development (plain `npm start`): the file is served from public/.
-  const localUrl = `${process.env.PUBLIC_URL || ''}/model/uno-flip-detector.onnx`;
+  const localUrl = `${import.meta.env.PUBLIC_URL || ''}/model/uno-flip-detector.onnx`;
   return downloadModel(localUrl);
 }
 
