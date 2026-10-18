@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import { recognizeCards } from './api/cardRecognition';
 import { preloadModel } from './api/localModel';
@@ -60,20 +60,11 @@ function App() {
   // Scan modal state. `null` means the modal is closed.
   const [scan, setScan] = useState(null);
   const [cameraError, setCameraError] = useState(null);
-  const [toasts, setToasts] = useState([]);
   const [modelReady, setModelReady] = useState(false);
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const preloadStartedRef = useRef(false);
-
-  const pushToast = useCallback((message, type = 'info') => {
-    const id = uid();
-    setToasts((prev) => [...prev, { id, message, type }]);
-    window.setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
-  }, []);
 
   // Persist the scoreboard so scores survive a refresh.
   useEffect(() => {
@@ -94,13 +85,9 @@ function App() {
   useEffect(() => {
     if (preloadStartedRef.current) return;
     preloadStartedRef.current = true;
-    pushToast('Loading card detector…', 'info');
     preloadModel()
-      .then(() => {
-        setModelReady(true);
-        pushToast('Card detector ready', 'success');
-      })
-      .catch(() => pushToast('Card detector failed to load', 'error'));
+      .then(() => setModelReady(true))
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -649,17 +636,7 @@ function App() {
         </div>
       )}
 
-      {toasts.length > 0 && (
-        <div className="toast-container">
-          {toasts.map((t) => (
-            <div key={t.id} className={`toast toast-${t.type}`} role="status">
-              {t.message}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {process.env.NODE_ENV === 'development' && <LogPanel />}
+      <LogPanel />
     </div>
   );
 }

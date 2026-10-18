@@ -1,41 +1,9 @@
 import { useEffect, useState } from 'react';
 import { clear, getEntries, subscribe } from './api/debugLog';
 
-const panelStyle = {
-  position: 'fixed',
-  left: 0,
-  right: 0,
-  bottom: 0,
-  zIndex: 9999,
-  background: 'rgba(17, 17, 17, 0.92)',
-  color: '#e6e6e6',
-  font: '12px/1.4 "SF Mono", Consolas, Menlo, monospace',
-  borderTop: '1px solid #333',
-  padding: '8px 12px',
-};
-
-const headerStyle = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  marginBottom: 4,
-};
-
-const clearButtonStyle = {
-  background: 'none',
-  border: 'none',
-  color: '#7db8ff',
-  cursor: 'pointer',
-  fontSize: 12,
-  fontFamily: 'inherit',
-};
-
-const listStyle = { maxHeight: 160, overflowY: 'auto' };
-const rowStyle = { whiteSpace: 'pre-wrap', wordBreak: 'break-word' };
-const timeStyle = { color: '#888', marginRight: 6 };
-
 export default function LogPanel() {
   const [entries, setEntries] = useState(getEntries());
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     const update = () => setEntries([...getEntries()]);
@@ -43,29 +11,48 @@ export default function LogPanel() {
     return unsubscribe;
   }, []);
 
+  const latest = entries[entries.length - 1];
+  const status = latest
+    ? `${latest.message}${
+        latest.data !== undefined ? ' ' + JSON.stringify(latest.data) : ''
+      }`
+    : 'Idle';
+
   return (
-    <div style={panelStyle}>
-      <div style={headerStyle}>
-        <span>📡 Model log</span>
-        <button style={clearButtonStyle} onClick={clear}>
-          Clear
-        </button>
+    <div className="log-panel" onClick={() => setExpanded((e) => !e)}>
+      <div className="log-status">
+        <span className="log-dot" aria-hidden="true" />
+        <span className="log-message">{status}</span>
+        <span className="log-chevron" aria-hidden="true">
+          {expanded ? '▾' : '▴'}
+        </span>
       </div>
-      <div style={listStyle}>
-        {entries.length === 0 ? (
-          <div>No logs yet — run a scan to see model fetch / inference.</div>
-        ) : (
-          entries.map((e, i) => (
-            <div key={i} style={rowStyle}>
-              <span style={timeStyle}>{e.t}</span>
-              <span>{e.message}</span>
-              {e.data !== undefined ? (
-                <span style={{ color: '#9aa' }}> {JSON.stringify(e.data)}</span>
-              ) : null}
-            </div>
-          ))
-        )}
-      </div>
+      {expanded && (
+        <div className="log-list" onClick={(ev) => ev.stopPropagation()}>
+          {entries.length === 0 ? (
+            <div className="log-empty">No logs yet.</div>
+          ) : (
+            entries.map((e, i) => (
+              <div key={i} className="log-row">
+                <span className="log-time">{e.t}</span>
+                <span>{e.message}</span>
+                {e.data !== undefined && (
+                  <span className="log-data"> {JSON.stringify(e.data)}</span>
+                )}
+              </div>
+            ))
+          )}
+          <button
+            className="log-clear"
+            onClick={(ev) => {
+              ev.stopPropagation();
+              clear();
+            }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { issueSignedToken, presignUrl } from '@vercel/blob';
+import { head, issueSignedToken, presignUrl } from '@vercel/blob';
 
 const MODEL_PATH = 'uno-flip-detector.onnx';
 
@@ -24,7 +24,8 @@ export default async function handler(req, res) {
       pathname: MODEL_PATH,
       access: 'private',
     });
-    return res.status(200).json({ url: presignedUrl });
+    const { size } = await head(MODEL_PATH, { token });
+    return res.status(200).json({ url: presignedUrl, size });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to sign model URL' });
   }

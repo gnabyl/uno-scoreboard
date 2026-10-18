@@ -10,7 +10,7 @@
 
 import * as ort from 'onnxruntime-web';
 
-import { log } from './debugLog';
+import { log, progress } from './debugLog';
 
 const INPUT_SIZE = 640;
 const DEFAULT_CONFIDENCE = 0.25;
@@ -54,7 +54,7 @@ async function fetchModelBuffer() {
       const data = await res.json();
       if (typeof data.url === 'string' && data.url) {
         log('signed model URL received from /api/model');
-        return await downloadModel(data.url);
+        return await downloadModel(data.url, data.size);
       }
     }
     log('no signed URL from /api/model, falling back to local file');
@@ -66,13 +66,41 @@ async function fetchModelBuffer() {
   return downloadModel(localUrl);
 }
 
-async function downloadModel(url) {
-  log('downloading model…');
+async function downloadModel(url, knownSize = 0) {
+  progress('download', 'downloading model…');
   const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`model download failed (HTTP ${res.status})`);
   }
-  const buffer = await res.arrayBuffer();
+
+  // Total size: prefer Content-Length, fall back to the size returned by
+  // /api/model (blob metadata) so we can always show a percentage.
+  const total = Number(res.headers.get('Content-Length')) || Number(knownSize) || 0;
+  const reader = res.body.getReader();
+  const chunks = [];
+  let received = 0;
+  let lastPct = -1;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    if (total > 0) {
+      const pct = Math.floor((received / total) * 100);
+      if (pct !== lastPct) {
+        lastPct = pct;
+        progress('download', 'downloading model…', { progress: `${pct}%` });
+      }
+    }
+  }
+
+  const buffer = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    buffer.set(chunk, offset);
+    offset += chunk.length;
+  }
   log('model downloaded', { bytes: buffer.byteLength });
   return buffer;
 }
@@ -92,17 +120,30 @@ function getSession() {
       ort.env.wasm.wasmPaths =
         'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/';
       const buffer = await fetchModelBuffer();
-      log('loading ONNX session…', { providers: ['webgl', 'wasm'] });
+      progress('session', 'loading ONNX session…', {
+        providers: ['webgl', 'wasm'],
+      });
+      const t0 = performance.now();
+      // Heartbeat: onnxruntime-web downloads its WASM runtime inside
+      // create() and doesn't expose progress, so tick elapsed time to show
+      // the app isn't stuck.
+      const heartbeat = window.setInterval(() => {
+        const secs = ((performance.now() - t0) / 1000).toFixed(1);
+        progress('session', 'loading ONNX session…', { elapsed: `${secs}s` });
+      }, 500);
       try {
         const session = await ort.InferenceSession.create(buffer, {
           executionProviders: ['webgl', 'wasm'],
           graphOptimizationLevel: 'all',
         });
-        log('ONNX session ready');
+        const secs = ((performance.now() - t0) / 1000).toFixed(1);
+        log('ONNX session ready', { time: `${secs}s` });
         return session;
       } catch (err) {
         log('ONNX session failed', { error: err.message });
         throw err;
+      } finally {
+        window.clearInterval(heartbeat);
       }
     })();
   }
