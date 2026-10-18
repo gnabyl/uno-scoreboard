@@ -23,3 +23,6 @@ runs/
 *.onnx
 .vercel
 .env*
+
+# Tests data
+test_images/
