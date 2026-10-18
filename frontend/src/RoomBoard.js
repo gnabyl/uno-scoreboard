@@ -524,7 +524,7 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
         </div>
       )}
 
-      <div className="mt-4 flex shrink-0 justify-center">
+      <div className="mt-4 mb-10 flex shrink-0 justify-center">
         <button
           className={BTN_ACCENT}
           onClick={handleAddRound}
