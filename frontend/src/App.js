@@ -7,6 +7,15 @@ import { computeScore, scoreForCard } from './unoScoring';
 
 const STORAGE_KEY = 'uno-scoreboard-v1';
 
+const IS_TOUCH = (() => {
+  if (typeof window === 'undefined') return false;
+  // `pointer: coarse` is true when the *primary* pointer is touch (phones /
+  // tablets). Touchscreen laptops still report `pointer: fine`, so they keep
+  // the desktop preview instead of falling into the native-capture path.
+  if (window.matchMedia) return window.matchMedia('(pointer: coarse)').matches;
+  return 'ontouchstart' in window;
+})();
+
 const uid = () =>
   Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
@@ -65,6 +74,8 @@ function App() {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const preloadStartedRef = useRef(false);
+  const mobileInputRef = useRef(null);
+  const pendingTargetRef = useRef(null);
 
   // Persist the scoreboard so scores survive a refresh.
   useEffect(() => {
@@ -257,18 +268,17 @@ function App() {
       (blob) => {
         if (!blob) return;
         const file = new File([blob], 'uno-cards.jpg', { type: 'image/jpeg' });
-        recognizeFile(file);
+        recognizeFileFor(file, scan.roundId, scan.playerId);
       },
       'image/jpeg',
       0.9
     );
   };
 
-  const recognizeFile = async (file) => {
-    if (!scan) return;
+  const recognizeFileFor = async (file, roundId, playerId) => {
     stopCamera();
     const previewUrl = URL.createObjectURL(file);
-    setScan((prev) => (prev ? { ...prev, previewUrl, status: 'loading' } : prev));
+    setScan({ roundId, playerId, previewUrl, status: 'loading' });
 
     try {
       const result = await recognizeCards(file);
@@ -298,9 +308,26 @@ function App() {
     }
   };
 
+  // Opens the camera. On touch devices use the native camera app (better
+  // UX, no permission prompt); on desktop use the in-app live preview.
+  const openCamera = (roundId, playerId) => {
+    if (IS_TOUCH) {
+      pendingTargetRef.current = { roundId, playerId };
+      if (mobileInputRef.current) mobileInputRef.current.click();
+    } else {
+      startCamera(roundId, playerId);
+    }
+  };
+
   const handleFileChange = async (event) => {
     const file = event.target.files && event.target.files[0];
-    if (file) recognizeFile(file);
+    if (file && scan) recognizeFileFor(file, scan.roundId, scan.playerId);
+  };
+
+  const handleNativeFile = async (event) => {
+    const file = event.target.files && event.target.files[0];
+    const target = pendingTargetRef.current;
+    if (file && target) recognizeFileFor(file, target.roundId, target.playerId);
   };
 
   const applyScannedScore = () => {
@@ -345,13 +372,6 @@ function App() {
           </button>
         </div>
         <div className="actions">
-          <button
-            className="btn btn-accent"
-            onClick={addRound}
-            disabled={players.length === 0}
-          >
-            + New round
-          </button>
           <button className="btn btn-ghost" onClick={resetAll}>
             Reset
           </button>
@@ -367,7 +387,8 @@ function App() {
           <p>Add the players sitting around the table to start the scoreboard.</p>
         </div>
       ) : (
-        <div className="table-wrap">
+        <>
+          <div className="table-wrap">
           <table className="scoreboard">
             <thead>
               <tr>
@@ -462,7 +483,7 @@ function App() {
                                 roundIndex + 1
                               }`}
                               disabled={!modelReady}
-                              onClick={() => startCamera(round.id, p.id)}
+                              onClick={() => openCamera(round.id, p.id)}
                             >
                               📷
                             </button>
@@ -493,6 +514,16 @@ function App() {
             </tfoot>
           </table>
         </div>
+        <div className="new-round-row">
+          <button
+            className="btn btn-accent"
+            onClick={addRound}
+            disabled={players.length === 0}
+          >
+            + New round
+          </button>
+        </div>
+        </>
       )}
 
       <input
@@ -501,6 +532,15 @@ function App() {
         accept="image/*"
         className="hidden-file-input"
         onChange={handleFileChange}
+      />
+
+      <input
+        ref={mobileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden-file-input"
+        onChange={handleNativeFile}
       />
 
       {scan && (
