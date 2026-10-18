@@ -34,7 +34,7 @@ export default function RoomPage() {
   const [error, setError] = useState(null);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState(null);
   const versionRef = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -97,15 +97,18 @@ export default function RoomPage() {
 
   const shareUrl = code ? `${window.location.origin}/r/${code}` : '';
 
-  const copyLink = async () => {
+  const copyText = async (text, what) => {
     try {
-      await navigator.clipboard.writeText(shareUrl);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
+      await navigator.clipboard.writeText(text);
+      setCopied(what);
+      window.setTimeout(() => setCopied(null), 1600);
     } catch {
-      setError('Could not copy the link. Select it manually.');
+      setError(`Could not copy the ${what}. Select it manually.`);
     }
   };
+
+  const copyCode = () => copyText(code, 'code');
+  const copyLink = () => copyText(shareUrl, 'link');
 
   let content;
 
@@ -220,12 +223,20 @@ export default function RoomPage() {
             <span className="font-mono text-sm font-bold tracking-[0.12em] text-white sm:text-base">
               {code}
             </span>
-            <button
-              className="rounded-lg border-none bg-transparent px-1.5 py-1 text-xs font-semibold text-muted transition hover:text-white"
-              onClick={copyLink}
-            >
-              {copied ? 'Copied!' : 'Copy'}
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                className="rounded-lg border-none bg-transparent px-1.5 py-1 text-xs font-semibold text-muted transition hover:text-white"
+                onClick={copyCode}
+              >
+                {copied === 'code' ? 'Copied!' : 'Copy code'}
+              </button>
+              <button
+                className="rounded-lg border-none bg-transparent px-1.5 py-1 text-xs font-semibold text-muted transition hover:text-white"
+                onClick={copyLink}
+              >
+                {copied === 'link' ? 'Copied!' : 'Copy link'}
+              </button>
+            </div>
           </div>
         )}
         <Link className={`${BTN_GHOST} no-underline`} to="/">
