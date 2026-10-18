@@ -80,6 +80,13 @@ async function downloadModel(url) {
 function getSession() {
   if (!sessionPromise) {
     sessionPromise = (async () => {
+      // TEMP (for testing): force a load failure by visiting ?simulateError=1
+      if (
+        typeof window !== 'undefined' &&
+        window.location.search.includes('simulateError')
+      ) {
+        throw new Error('Simulated model load failure');
+      }
       // The ~20 MB of WASM runtime files are fetched from the pinned CDN so
       // they don't need to be committed to the repo.
       ort.env.wasm.wasmPaths =
@@ -105,11 +112,10 @@ function getSession() {
 /**
  * Starts loading the ONNX model immediately (rather than waiting for the
  * first scan). Safe to call multiple times — the session is cached.
+ * Resolves once the session is ready, or rejects if loading failed.
  */
 export function preloadModel() {
-  getSession().catch((err) => {
-    log('model preload failed', { error: err.message });
-  });
+  return getSession();
 }
 
 async function bitmapToTensor(bitmap) {

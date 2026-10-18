@@ -358,9 +358,13 @@ tr:hover .remove-btn {
 
 .camera-btn {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 38px;
   height: 38px;
   font-size: 16px;
+  line-height: 1;
   border-radius: 10px;
   border: 1px solid #2c3444;
   background: #1b2230;
@@ -369,7 +373,12 @@ tr:hover .remove-btn {
   transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 
-.camera-btn:hover {
+.camera-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.camera-btn:hover:not(:disabled) {
   color: #4c9aff;
   border-color: #4c9aff;
   background: rgba(76, 154, 255, 0.1);
@@ -628,5 +637,52 @@ tr:hover .remove-btn {
 
   .score-input {
     width: 64px;
+  }
+}
+
+/* ---------- Toasts ---------- */
+.toast-container {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  animation: toast-in 0.2s ease;
+}
+
+.toast-info {
+  background: #1d2a44;
+}
+
+.toast-success {
+  background: #1f7a4d;
+}
+
+.toast-error {
+  background: #b33636;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

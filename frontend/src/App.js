@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import { recognizeCards } from './api/cardRecognition';
 import { preloadModel } from './api/localModel';
@@ -60,9 +60,20 @@ function App() {
   // Scan modal state. `null` means the modal is closed.
   const [scan, setScan] = useState(null);
   const [cameraError, setCameraError] = useState(null);
+  const [toasts, setToasts] = useState([]);
+  const [modelReady, setModelReady] = useState(false);
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const preloadStartedRef = useRef(false);
+
+  const pushToast = useCallback((message, type = 'info') => {
+    const id = uid();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    window.setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  }, []);
 
   // Persist the scoreboard so scores survive a refresh.
   useEffect(() => {
@@ -81,7 +92,16 @@ function App() {
   // Warm up the detector on mount so the first scan doesn't wait on the
   // model download / session creation.
   useEffect(() => {
-    preloadModel();
+    if (preloadStartedRef.current) return;
+    preloadStartedRef.current = true;
+    pushToast('Loading card detector…', 'info');
+    preloadModel()
+      .then(() => {
+        setModelReady(true);
+        pushToast('Card detector ready', 'success');
+      })
+      .catch(() => pushToast('Card detector failed to load', 'error'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const addPlayer = () => {
@@ -446,10 +466,15 @@ function App() {
                             )}
                             <button
                               className="camera-btn"
-                              title={`Scan ${p.name}'s cards`}
+                              title={
+                                modelReady
+                                  ? `Scan ${p.name}'s cards`
+                                  : 'Detector still loading…'
+                              }
                               aria-label={`Scan ${p.name}'s cards for round ${
                                 roundIndex + 1
                               }`}
+                              disabled={!modelReady}
                               onClick={() => startCamera(round.id, p.id)}
                             >
                               📷
@@ -514,7 +539,11 @@ function App() {
                 {cameraError ? (
                   <p className="camera-error">{cameraError}</p>
                 ) : (
-                  <p className="camera-hint">Aim at the cards, then capture.</p>
+                  <p className="camera-hint">
+                    {modelReady
+                      ? 'Aim at the cards, then capture.'
+                      : 'Loading card detector…'}
+                  </p>
                 )}
                 <div className="camera-actions">
                   <button className="btn btn-ghost" onClick={closeScan}>
@@ -522,6 +551,7 @@ function App() {
                   </button>
                   <button
                     className="btn btn-ghost"
+                    disabled={!modelReady}
                     onClick={() => {
                       if (fileInputRef.current) {
                         fileInputRef.current.value = '';
@@ -534,7 +564,7 @@ function App() {
                   <button
                     className="btn btn-accent shutter-btn"
                     onClick={capturePhoto}
-                    disabled={!!cameraError}
+                    disabled={!!cameraError || !modelReady}
                   >
                     <span className="shutter-icon" aria-hidden="true">
                       ⏺
@@ -616,6 +646,16 @@ function App() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {toasts.length > 0 && (
+        <div className="toast-container">
+          {toasts.map((t) => (
+            <div key={t.id} className={`toast toast-${t.type}`} role="status">
+              {t.message}
+            </div>
+          ))}
         </div>
       )}
 
