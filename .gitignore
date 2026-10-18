@@ -3,6 +3,7 @@ data/cards/
 
 # Generated hand compositions and class list (recreated by data/compose_hands.py)
 data/hands/
+data/background/
 data/classes.txt
 
 # Python
