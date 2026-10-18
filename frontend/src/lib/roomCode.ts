@@ -1,4 +1,4 @@
-export function parseRoomCode(input) {
+export function parseRoomCode(input: unknown): string {
   const raw = String(input ?? '').trim();
   if (!raw) return '';
 
@@ -16,7 +16,7 @@ export function parseRoomCode(input) {
   return segments.length > 0 ? segments[segments.length - 1] : raw;
 }
 
-export function describeRoomError(err) {
+export function describeRoomError(err: { code?: string | null; message?: string } | null | undefined): string {
   switch (err?.code) {
     case 'rate_limited':
       return 'Too many attempts. Wait a minute and try again.';

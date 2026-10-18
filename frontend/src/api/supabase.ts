@@ -15,10 +15,10 @@ export const supabase = isConfigured
     })
   : null;
 
-let sessionPromise = null;
+let sessionPromise: Promise<any> | null = null;
 
 /** Resolves to a Supabase session, signing in anonymously on first use. */
-export function ensureSession() {
+export function ensureSession(): Promise<any> {
   if (!supabase) {
     return Promise.reject(
       // Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local or the Vercel dashboard.

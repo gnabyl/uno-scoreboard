@@ -5,14 +5,11 @@
 // the model URL is resolved from /api/model in production and falls back
 // to the local copy in /public/model for development.
 
-import { detectCards } from './localModel';
+import { detectCards, type DetectionResult } from './localModel';
 
 /**
  * Recognises cards in a photo.
- *
- * @param {File|Blob} imageFile
- * @returns {Promise<{ cards: string[], detections: Array, width: number, height: number }>}
  */
-export async function recognizeCards(imageFile) {
+export async function recognizeCards(imageFile: Blob): Promise<DetectionResult> {
   return detectCards(imageFile);
 }

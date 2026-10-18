@@ -1,7 +1,41 @@
 import { ensureSession, supabase } from './supabase';
 
+/** A player in a room, as returned by the get_room RPC. */
+export interface RoomPlayer {
+  id: string;
+  name: string;
+  seat?: number;
+}
+
+/** One round of scores, keyed by player id. */
+export interface RoomRound {
+  id: string;
+  seq?: number;
+  scores: Record<string, any>;
+}
+
+/** Full room snapshot returned by the get_room RPC. */
+export interface RoomSnapshot {
+  version: number | string;
+  me: string | null;
+  players: RoomPlayer[];
+  rounds: RoomRound[];
+  [key: string]: any;
+}
+
 export class RoomApiError extends Error {
-  constructor(message, { code = null, details = null, status = null } = {}) {
+  code: string | null;
+  details: any;
+  status: number | null;
+
+  constructor(
+    message: string,
+    {
+      code = null,
+      details = null,
+      status = null,
+    }: { code?: string | null; details?: any; status?: number | null } = {}
+  ) {
     super(message);
     this.name = 'RoomApiError';
     this.code = code;
@@ -11,7 +45,9 @@ export class RoomApiError extends Error {
 }
 
 export class VersionConflictError extends RoomApiError {
-  constructor(currentVersion) {
+  currentVersion: number | null;
+
+  constructor(currentVersion: number | null) {
     super('The room changed since you loaded it.', { code: 'version_conflict' });
     this.name = 'VersionConflictError';
     this.currentVersion = currentVersion;
@@ -19,7 +55,10 @@ export class VersionConflictError extends RoomApiError {
 }
 
 export class ScoreConflictError extends RoomApiError {
-  constructor(currentValue, snapshot) {
+  currentValue: number | null;
+  snapshot: RoomSnapshot;
+
+  constructor(currentValue: number | null, snapshot: RoomSnapshot) {
     super('Another player changed this score.', { code: 'score_conflict' });
     this.name = 'ScoreConflictError';
     this.currentValue = currentValue;
@@ -27,7 +66,7 @@ export class ScoreConflictError extends RoomApiError {
   }
 }
 
-export function requestId() {
+export function requestId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
@@ -38,7 +77,7 @@ export function requestId() {
   });
 }
 
-function toRoomError(error) {
+function toRoomError(error: any): RoomApiError {
   const code = error?.code ?? null;
   const details = error?.details ?? null;
 
@@ -68,16 +107,16 @@ function toRoomError(error) {
   });
 }
 
-async function call(name, params) {
+async function call(name: string, params: Record<string, any>): Promise<any> {
   await ensureSession();
-  const { data, error } = await supabase.rpc(name, params);
+  const { data, error } = await supabase!.rpc(name, params);
   if (error) throw toRoomError(error);
   return data;
 }
 
-const asVersion = (data) => Number(data?.version);
+const asVersion = (data: any): number => Number(data?.version);
 
-export async function createRoom(name) {
+export async function createRoom(name: string): Promise<any> {
   return call('create_room', {
     p_name: name,
     p_request_id: requestId(),
@@ -86,7 +125,7 @@ export async function createRoom(name) {
 
 const ROOM_CODE_ALPHABET = /^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{8}$/;
 
-export function normalizeRoomCode(value) {
+export function normalizeRoomCode(value: unknown): string {
   const code = String(value ?? '').trim().toUpperCase();
   if (!ROOM_CODE_ALPHABET.test(code)) {
     throw new RoomApiError('Room codes are 8 characters.', { code: 'invalid_code' });
@@ -98,7 +137,10 @@ export function normalizeRoomCode(value) {
  * Join by picking an existing player (playerId) or creating one (name).
  * Returns the room snapshot alongside the resolved player id.
  */
-export async function joinRoom(code, { name = null, playerId = null } = {}) {
+export async function joinRoom(
+  code: string,
+  { name = null, playerId = null }: { name?: string | null; playerId?: string | null } = {}
+): Promise<any> {
   const joined = await call('join_room', {
     p_code: normalizeRoomCode(code),
     p_name: name,
@@ -115,11 +157,15 @@ export async function joinRoom(code, { name = null, playerId = null } = {}) {
   return joined;
 }
 
-export async function getRoom(code) {
+export async function getRoom(code: string): Promise<RoomSnapshot> {
   return call('get_room', { p_code: normalizeRoomCode(code) });
 }
 
-export async function addPlayer(code, name, baseVersion) {
+export async function addPlayer(
+  code: string,
+  name: string,
+  baseVersion: number
+): Promise<{ version: number; playerId: string }> {
   const data = await call('cmd_add_player', {
     p_code: normalizeRoomCode(code),
     p_player_id: requestId(),
@@ -130,7 +176,11 @@ export async function addPlayer(code, name, baseVersion) {
   return { version: asVersion(data), playerId: data.playerId };
 }
 
-export async function deletePlayer(code, playerId, baseVersion) {
+export async function deletePlayer(
+  code: string,
+  playerId: string,
+  baseVersion: number
+): Promise<number> {
   const data = await call('cmd_delete_player', {
     p_code: normalizeRoomCode(code),
     p_player_id: playerId,
@@ -140,7 +190,11 @@ export async function deletePlayer(code, playerId, baseVersion) {
   return asVersion(data);
 }
 
-export async function kickPlayer(code, playerId, baseVersion) {
+export async function kickPlayer(
+  code: string,
+  playerId: string,
+  baseVersion: number
+): Promise<number> {
   const data = await call('cmd_kick_player', {
     p_code: normalizeRoomCode(code),
     p_player_id: playerId,
@@ -150,7 +204,11 @@ export async function kickPlayer(code, playerId, baseVersion) {
   return asVersion(data);
 }
 
-export async function addRound(code, baseVersion, roundId = requestId()) {
+export async function addRound(
+  code: string,
+  baseVersion: number,
+  roundId: string = requestId()
+): Promise<{ version: number; roundId: string }> {
   const data = await call('cmd_add_round', {
     p_code: normalizeRoomCode(code),
     p_round_id: roundId,
@@ -160,7 +218,11 @@ export async function addRound(code, baseVersion, roundId = requestId()) {
   return { version: asVersion(data), roundId: data.roundId };
 }
 
-export async function deleteRound(code, roundId, baseVersion) {
+export async function deleteRound(
+  code: string,
+  roundId: string,
+  baseVersion: number
+): Promise<number> {
   const data = await call('cmd_delete_round', {
     p_code: normalizeRoomCode(code),
     p_round_id: roundId,
@@ -170,7 +232,7 @@ export async function deleteRound(code, roundId, baseVersion) {
   return asVersion(data);
 }
 
-export async function resetRoom(code, baseVersion) {
+export async function resetRoom(code: string, baseVersion: number): Promise<number> {
   const data = await call('cmd_reset_room', {
     p_code: normalizeRoomCode(code),
     p_base_version: baseVersion,
@@ -179,13 +241,17 @@ export async function resetRoom(code, baseVersion) {
   return asVersion(data);
 }
 
-const numericValue = (value) => {
+const numericValue = (value: unknown): number | null => {
   if (value === '' || value === null || value === undefined) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-function readCell(snapshot, roundId, playerId) {
+function readCell(
+  snapshot: RoomSnapshot,
+  roundId: string,
+  playerId: string
+): number | null | undefined {
   const round = snapshot?.rounds?.find((r) => r.id === roundId);
   if (!round || !Object.prototype.hasOwnProperty.call(round.scores, playerId)) {
     return undefined;
@@ -200,12 +266,24 @@ function readCell(snapshot, roundId, playerId) {
  * unrelated edit elsewhere in the room never blocks the user.
  */
 export async function setScore(
-  code,
-  { roundId, playerId, value, baseVersion, previousValue }
-) {
+  code: string,
+  {
+    roundId,
+    playerId,
+    value,
+    baseVersion,
+    previousValue,
+  }: {
+    roundId: string;
+    playerId: string;
+    value: string | number | null;
+    baseVersion: number;
+    previousValue?: number | string | null;
+  }
+): Promise<number> {
   const id = requestId();
   const room = normalizeRoomCode(code);
-  const write = (version) =>
+  const write = (version: number) =>
     call('cmd_set_score', {
       p_code: room,
       p_round_id: roundId,
@@ -227,7 +305,7 @@ export async function setScore(
     if (currentValue === undefined || currentValue !== expected) {
       throw new ScoreConflictError(currentValue, snapshot);
     }
-    return asVersion(await write(snapshot.version));
+    return asVersion(await write(Number(snapshot.version)));
   }
 }
 
@@ -235,7 +313,16 @@ export async function setScore(
  * Subscribes to room version changes. `onVersion(null)` means "refetch now" —
  * emitted on subscribe so a reconnect cannot leave the UI stale.
  */
-export function subscribeToRoom(code, { onVersion, onStatus } = {}) {
+export function subscribeToRoom(
+  code: string,
+  {
+    onVersion,
+    onStatus,
+  }: {
+    onVersion?: (version: number | null) => void;
+    onStatus?: (status: string) => void;
+  } = {}
+): () => void {
   if (!supabase) return () => {};
 
   const channel = supabase
@@ -248,7 +335,7 @@ export function subscribeToRoom(code, { onVersion, onStatus } = {}) {
         table: 'rooms',
         filter: `code=eq.${code}`,
       },
-      (payload) => {
+      (payload: any) => {
         const version = payload?.new?.version;
         if (version !== undefined && version !== null) onVersion?.(Number(version));
       }

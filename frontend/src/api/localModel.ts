@@ -41,7 +41,21 @@ const MIN_CONFIDENCE = parseFloat(
   import.meta.env.VITE_MIN_CONFIDENCE || String(DEFAULT_CONFIDENCE)
 );
 
-let sessionPromise = null;
+/** One detected card, with its box mapped back to original image coordinates. */
+export interface Detection {
+  name: string;
+  conf: number;
+  box: number[];
+}
+
+export interface DetectionResult {
+  cards: string[];
+  detections: Detection[];
+  width: number;
+  height: number;
+}
+
+let sessionPromise: Promise<ort.InferenceSession> | null = null;
 
 async function fetchModelBuffer() {
   // Production: ask the Vercel function for a fresh signed URL, then download
@@ -66,7 +80,7 @@ async function fetchModelBuffer() {
   return downloadModel(localUrl);
 }
 
-async function downloadModel(url, knownSize = 0) {
+async function downloadModel(url: string, knownSize: number | string = 0) {
   progress('download', 'downloading model…');
   const res = await fetch(url);
   if (!res.ok) {
@@ -159,7 +173,7 @@ export function preloadModel() {
   return getSession();
 }
 
-async function bitmapToTensor(bitmap) {
+async function bitmapToTensor(bitmap: ImageBitmap) {
   const srcW = bitmap.width;
   const srcH = bitmap.height;
   const scale = INPUT_SIZE / Math.max(srcW, srcH);
@@ -197,16 +211,8 @@ async function bitmapToTensor(bitmap) {
 
 /**
  * Detects card types in an image file.
- *
- * @param {File|Blob} file
- * @returns {Promise<{
- *   cards: string[],
- *   detections: Array<{ name: string, conf: number, box: number[] }>,
- *   width: number,
- *   height: number
- * }>}
  */
-export async function detectCards(file) {
+export async function detectCards(file: Blob): Promise<DetectionResult> {
   const session = await getSession();
   const bitmap = await createImageBitmap(file);
   const width = bitmap.width;
@@ -215,10 +221,11 @@ export async function detectCards(file) {
     const { tensor, scale, padX, padY } = await bitmapToTensor(bitmap);
     log('running inference…', { image: `${bitmap.width}x${bitmap.height}` });
     const results = await session.run({ [session.inputNames[0]]: tensor });
-    const output = results[session.outputNames[0]]; // [1, 300, 6]
+    // The output is a float32 tensor of shape [1, 300, 6].
+    const output = results[session.outputNames[0]] as ort.TypedTensor<'float32'>;
     const data = output.data;
 
-    const detections = [];
+    const detections: Array<{ cls: number; conf: number; box: number[] }> = [];
     const count = output.dims[1] || 0;
     for (let i = 0; i < count; i++) {
       const o = i * 6;

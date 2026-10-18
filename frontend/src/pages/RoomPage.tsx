@@ -5,6 +5,7 @@ import {
   joinRoom,
   normalizeRoomCode,
   subscribeToRoom,
+  type RoomSnapshot,
 } from '../api/rooms';
 import RoomBoard from '../RoomBoard';
 import { describeRoomError } from '../lib/roomCode';
@@ -30,11 +31,11 @@ export default function RoomPage() {
   }, [routeCode]);
 
   const [status, setStatus] = useState('loading');
-  const [snapshot, setSnapshot] = useState(null);
-  const [error, setError] = useState(null);
+  const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(null);
+  const [copied, setCopied] = useState<string | null>(null);
   const versionRef = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -75,7 +76,7 @@ export default function RoomPage() {
     });
   }, [code, status, refresh]);
 
-  const handleJoin = async (event) => {
+  const handleJoin = async (event: React.FormEvent) => {
     event.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) {
@@ -97,7 +98,7 @@ export default function RoomPage() {
 
   const shareUrl = code ? `${window.location.origin}/r/${code}` : '';
 
-  const copyText = async (text, what) => {
+  const copyText = async (text: string | null, what: string) => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(what);

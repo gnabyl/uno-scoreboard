@@ -2,21 +2,28 @@
 // the dev-only LogPanel subscribes to show live progress (model fetch, session
 // creation, inference, etc.).
 
-const listeners = new Set();
-const entries = [];
+export interface LogEntry {
+  t: string;
+  key?: string;
+  message: string;
+  data?: unknown;
+}
+
+const listeners = new Set<() => void>();
+const entries: LogEntry[] = [];
 
 function notify() {
   for (const fn of listeners) fn();
 }
 
-export function log(message, data) {
+export function log(message: string, data?: unknown) {
   entries.push({
     t: new Date().toLocaleTimeString(),
     message,
     data,
   });
   if (entries.length > 200) entries.shift();
-  if (process.env.NODE_ENV === 'development') {
+  if (import.meta.env.DEV) {
     // eslint-disable-next-line no-console
     console.debug('[model]', message, data === undefined ? '' : data);
   }
@@ -28,7 +35,7 @@ export function log(message, data) {
  * same `key`. Used for ticking progress (download %, elapsed time) so the
  * log isn't flooded with one line per update.
  */
-export function progress(key, message, data) {
+export function progress(key: string, message: string, data?: unknown) {
   const last = entries[entries.length - 1];
   if (last && last.key === key) {
     last.message = message;
@@ -38,19 +45,19 @@ export function progress(key, message, data) {
     entries.push({ t: new Date().toLocaleTimeString(), key, message, data });
     if (entries.length > 200) entries.shift();
   }
-  if (process.env.NODE_ENV === 'development') {
+  if (import.meta.env.DEV) {
     // eslint-disable-next-line no-console
     console.debug('[model]', message, data === undefined ? '' : data);
   }
   notify();
 }
 
-export function subscribe(fn) {
+export function subscribe(fn: () => void): () => void {
   listeners.add(fn);
   return () => listeners.delete(fn);
 }
 
-export function getEntries() {
+export function getEntries(): LogEntry[] {
   return entries;
 }
 

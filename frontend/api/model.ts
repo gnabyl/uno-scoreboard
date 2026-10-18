@@ -2,7 +2,7 @@ import { head, issueSignedToken, presignUrl } from '@vercel/blob';
 
 const MODEL_PATH = 'uno-flip-detector.onnx';
 
-export default async function handler(req, res) {
+export default async function handler(req: any, res: any) {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   if (!token) {
     return res

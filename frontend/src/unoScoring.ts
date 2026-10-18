@@ -13,7 +13,7 @@
  * @param {string} name
  * @returns {number}
  */
-export function scoreForCard(name) {
+export function scoreForCard(name: string): number {
   const raw = String(name ?? '').trim();
   if (!raw) return 0;
 
@@ -40,7 +40,7 @@ export function scoreForCard(name) {
  * @param {string[]} cardNames
  * @returns {number}
  */
-export function computeScore(cardNames) {
+export function computeScore(cardNames: string[]): number {
   if (!Array.isArray(cardNames)) return 0;
   return cardNames.reduce((total, name) => total + scoreForCard(name), 0);
 }

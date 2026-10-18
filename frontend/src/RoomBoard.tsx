@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { recognizeCards } from './api/cardRecognition';
-import { preloadModel } from './api/localModel';
+import { preloadModel, type Detection } from './api/localModel';
 import LogPanel from './LogPanel';
 import { computeScore, scoreForCard } from './unoScoring';
 import {
@@ -11,6 +11,7 @@ import {
 } from './api/rooms';
 import { describeRoomError } from './lib/roomCode';
 import { BTN_ACCENT, BTN_GHOST, BTN_PRIMARY, ErrorNotice } from './components/ui';
+import type { RoomSnapshot } from './api/rooms';
 
 const IS_TOUCH = (() => {
   if (typeof window === 'undefined') return false;
@@ -32,7 +33,12 @@ const SCORE_INPUT = `${SCORE_FIELD} transition placeholder:font-normal placehold
 const CAMERA_BTN =
   'inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[10px] border border-edge bg-raised text-lg leading-none text-muted transition enabled:hover:border-accent enabled:hover:bg-accent/10 enabled:hover:text-accent disabled:cursor-not-allowed disabled:opacity-45 sm:h-[38px] sm:w-[38px] sm:text-base';
 
-async function annotatePreview(file, detections, width, height) {
+async function annotatePreview(
+  file: Blob,
+  detections: Detection[],
+  width: number,
+  height: number
+): Promise<string> {
   const bitmap = await createImageBitmap(file);
   try {
     const canvas = document.createElement('canvas');
@@ -56,9 +62,17 @@ async function annotatePreview(file, detections, width, height) {
   }
 }
 
-const cellString = (value) => (value === null || value === undefined ? '' : String(value));
+const cellString = (value: number | string | null | undefined) =>
+  value === null || value === undefined ? '' : String(value);
 
-function ScoreCell({ value, label, onCommit, busy }) {
+interface ScoreCellProps {
+  value: number | string | null;
+  label: string;
+  onCommit: (value: string) => void;
+  busy?: boolean;
+}
+
+function ScoreCell({ value, label, onCommit, busy }: ScoreCellProps) {
   const [draft, setDraft] = useState(cellString(value));
   const focusedRef = useRef(false);
 
@@ -110,21 +124,41 @@ function ScoreCell({ value, label, onCommit, busy }) {
   );
 }
 
-export default function RoomBoard({ code, snapshot, onRefresh }) {
+/** Scan modal state. `null` means the modal is closed. */
+interface ScanState {
+  roundId: string;
+  playerId: string;
+  status: 'capturing' | 'loading' | 'done' | 'error';
+  previewUrl?: string;
+  cards?: string[];
+  annotatedPreview?: string;
+  score?: number;
+  error?: string;
+}
+
+export default function RoomBoard({
+  code,
+  snapshot,
+  onRefresh,
+}: {
+  code: string;
+  snapshot: RoomSnapshot;
+  onRefresh: () => void | Promise<void>;
+}) {
   const players = snapshot.players;
   const rounds = snapshot.rounds;
   const version = Number(snapshot.version) || 0;
   const me = snapshot.me;
 
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Collapse state: only the newest round stays open by default.
   const [collapsed, setCollapsed] = useState(() => {
     const ids = rounds.map((r) => r.id);
     return new Set(ids.slice(0, -1));
   });
-  const prevRoundIdsRef = useRef([]);
+  const prevRoundIdsRef = useRef<string[]>([]);
 
   useEffect(() => {
     const ids = rounds.map((r) => r.id);
@@ -136,7 +170,7 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
     }
   }, [rounds]);
 
-  const toggleRound = (id) => {
+  const toggleRound = (id: string) => {
     setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -145,16 +179,16 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
     });
   };
 
-  // Scan modal state. `null` means the modal is closed.
-  const [scan, setScan] = useState(null);
-  const [cameraError, setCameraError] = useState(null);
+  // Scan modal state.
+  const [scan, setScan] = useState<ScanState | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const [modelReady, setModelReady] = useState(false);
-  const fileInputRef = useRef(null);
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const preloadStartedRef = useRef(false);
-  const mobileInputRef = useRef(null);
-  const pendingTargetRef = useRef(null);
+  const mobileInputRef = useRef<HTMLInputElement | null>(null);
+  const pendingTargetRef = useRef<{ roundId: string; playerId: string } | null>(null);
 
   // Stop the camera if the component unmounts while it is running.
   useEffect(() => {
@@ -175,7 +209,7 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const runMutation = async (action) => {
+  const runMutation = async (action: () => any) => {
     setBusy(true);
     setError(null);
     try {
@@ -189,7 +223,7 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
     }
   };
 
-  const handleRemovePlayer = (id) => {
+  const handleRemovePlayer = (id: string) => {
     const target = players.find((p) => p.id === id);
     if (
       target &&
@@ -204,12 +238,12 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
     runMutation(() => addRound(code, version));
   };
 
-  const handleRemoveRound = (id) => {
+  const handleRemoveRound = (id: string) => {
     if (!window.confirm('Remove this round?')) return;
     runMutation(() => deleteRound(code, id, version));
   };
 
-  const handleSetScore = (roundId, playerId, value) => {
+  const handleSetScore = (roundId: string, playerId: string, value: string) => {
     const previous = (() => {
       const round = rounds.find((r) => r.id === roundId);
       if (!round || !Object.prototype.hasOwnProperty.call(round.scores, playerId)) {
@@ -229,29 +263,32 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
     );
   };
 
-  const roundSummaries = useMemo(() => {
-    const map = {};
-    rounds.forEach((round) => {
-      let sum = 0;
-      let winner = null;
-      let multiple = false;
-      players.forEach((p) => {
-        const raw = round.scores[p.id];
-        const value = parseFloat(raw);
-        if (raw === null || raw === undefined || raw === '' || Number.isNaN(value) || value === 0) {
-          if (winner === null) winner = p.id;
-          else if (winner !== p.id) multiple = true;
-        } else {
-          sum += value;
-        }
+  const roundSummaries = useMemo<Record<string, { sum: number; winner: string | null }>>(
+    () => {
+      const map: Record<string, { sum: number; winner: string | null }> = {};
+      rounds.forEach((round) => {
+        let sum = 0;
+        let winner: string | null = null;
+        let multiple = false;
+        players.forEach((p) => {
+          const raw = round.scores[p.id];
+          const value = parseFloat(raw);
+          if (raw === null || raw === undefined || raw === '' || Number.isNaN(value) || value === 0) {
+            if (winner === null) winner = p.id;
+            else if (winner !== p.id) multiple = true;
+          } else {
+            sum += value;
+          }
+        });
+        map[round.id] = { sum, winner: multiple ? null : winner };
       });
-      map[round.id] = { sum, winner: multiple ? null : winner };
-    });
-    return map;
-  }, [rounds, players]);
+      return map;
+    },
+    [rounds, players]
+  );
 
-  const totals = useMemo(() => {
-    const result = {};
+  const totals = useMemo<Record<string, number>>(() => {
+    const result: Record<string, number> = {};
     players.forEach((p) => {
       result[p.id] = 0;
     });
@@ -274,11 +311,11 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
   );
 
   const maxTotal = hasData ? Math.max(...players.map((p) => totals[p.id])) : null;
-  const isWinner = (playerId) =>
+  const isWinner = (playerId: string) =>
     hasData && players.length > 1 && totals[playerId] === maxTotal;
 
   // ---------- Photo scanning ----------
-  const attachVideo = (node) => {
+  const attachVideo = (node: HTMLVideoElement | null) => {
     videoRef.current = node;
     if (node && streamRef.current) {
       node.srcObject = streamRef.current;
@@ -286,7 +323,7 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
     }
   };
 
-  const startCamera = async (roundId, playerId) => {
+  const startCamera = async (roundId: string, playerId: string) => {
     setCameraError(null);
     setScan({ roundId, playerId, status: 'capturing' });
 
@@ -335,7 +372,7 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
     );
   };
 
-  const recognizeFileFor = async (file, roundId, playerId) => {
+  const recognizeFileFor = async (file: File, roundId: string, playerId: string) => {
     stopCamera();
     const previewUrl = URL.createObjectURL(file);
     setScan({ roundId, playerId, previewUrl, status: 'loading' });
@@ -368,7 +405,7 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
     }
   };
 
-  const openCamera = (roundId, playerId) => {
+  const openCamera = (roundId: string, playerId: string) => {
     if (IS_TOUCH) {
       pendingTargetRef.current = { roundId, playerId };
       if (mobileInputRef.current) mobileInputRef.current.click();
@@ -377,7 +414,7 @@ export default function RoomBoard({ code, snapshot, onRefresh }) {
     }
   };
 
-  const handleFileChange = (event) => {
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files && event.target.files[0];
     if (file && scan) recognizeFileFor(file, scan.roundId, scan.playerId);
   };

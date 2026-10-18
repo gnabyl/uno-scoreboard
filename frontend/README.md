@@ -39,12 +39,12 @@ write tables directly.
   writes per room. A stale `base_version` raises `PT409`; retrying the same
   `request_id` is replayed instead of rejected.
 - Clients subscribe to `rooms.version` over Realtime and refetch
-  [`get_room`](./src/api/rooms.js) on every bump, so a dropped event only
+  [`get_room`](./src/api/rooms.ts) on every bump, so a dropped event only
   delays a refresh and never loses state.
 - A blank score is `NULL`. Totals and round winners stay derived on the client;
   nothing aggregate is stored.
-- The API layer is [`src/api/rooms.js`](./src/api/rooms.js) with the client in
-  [`src/api/supabase.js`](./src/api/supabase.js).
+- The API layer is [`src/api/rooms.ts`](./src/api/rooms.ts) with the client in
+  [`src/api/supabase.ts`](./src/api/supabase.ts).
 
 ### Conflict policy
 
@@ -53,6 +53,14 @@ write tables directly.
 the fresh snapshot. Destructive operations surface `VersionConflictError` so the
 UI can ask for confirmation.
 
+
+## TypeScript
+
+The app is written in TypeScript. `npm run typecheck` runs `tsc --noEmit` over
+`src/`, `api/` and the config files. The project currently compiles with
+`strict: false` (see [`tsconfig.json`](./tsconfig.json)) — a lenient starting
+point; tighten it incrementally. Test files (`*.test.ts(x)`, `setupTests.ts`)
+are excluded from the typecheck until a test runner is wired up.
 
 ## Available Scripts
 
@@ -123,8 +131,8 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/t
 
 ## Styling
 
-The UI is styled with [Tailwind CSS](https://tailwindcss.com/). Create React App detects `tailwind.config.js` and runs Tailwind through its built-in PostCSS pipeline, so there is no separate build step.
+The UI is styled with [Tailwind CSS](https://tailwindcss.com/). Vite runs Tailwind through its PostCSS pipeline ([`postcss.config.mts`](./postcss.config.mts)), so there is no separate build step.
 
-- Design tokens (colors, shadows, fonts) live in [`tailwind.config.js`](./tailwind.config.js).
+- Design tokens (colors, shadows, fonts) live in [`tailwind.config.ts`](./tailwind.config.ts).
 - [`src/index.css`](./src/index.css) loads the Tailwind layers and global body styles.
-- Utility classes are applied directly in JSX. Shared class strings for buttons, score fields, and table cells are defined at the top of [`src/App.js`](./src/App.js).
+- Utility classes are applied directly in JSX. Shared class strings for buttons, score fields, and table cells are defined at the top of [`src/components/ui.tsx`](./src/components/ui.tsx).

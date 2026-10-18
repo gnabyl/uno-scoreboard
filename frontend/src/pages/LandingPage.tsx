@@ -16,9 +16,9 @@ export default function LandingPage() {
   const [hostName, setHostName] = useState('');
   const [joinInput, setJoinInput] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleHost = async (event) => {
+  const handleHost = async (event: React.FormEvent) => {
     event.preventDefault();
     const name = hostName.trim();
     if (!name) {
@@ -38,7 +38,7 @@ export default function LandingPage() {
     }
   };
 
-  const handleJoin = (event) => {
+  const handleJoin = (event: React.FormEvent) => {
     event.preventDefault();
     try {
       navigate(`/r/${normalizeRoomCode(parseRoomCode(joinInput))}`);

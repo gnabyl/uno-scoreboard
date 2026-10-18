@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 export const BTN_BASE =
   'min-h-11 rounded-xl px-4 py-3 text-sm font-semibold transition duration-150 hover:enabled:-translate-y-px hover:enabled:brightness-110 active:enabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-45 sm:min-h-0 sm:px-[18px] sm:py-[11px]';
 export const BTN_PRIMARY = `${BTN_BASE} bg-edge text-white`;
@@ -20,7 +22,7 @@ export function Logo() {
   );
 }
 
-export function ErrorNotice({ children }) {
+export function ErrorNotice({ children }: { children?: ReactNode }) {
   if (!children) return null;
   return (
     <p
