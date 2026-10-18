@@ -21,3 +21,5 @@ data/*.pt
 weights/
 runs/
 *.onnx
+.vercel
+.env*

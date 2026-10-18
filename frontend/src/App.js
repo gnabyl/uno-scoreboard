@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import { recognizeCards } from './api/cardRecognition';
+import { preloadModel } from './api/localModel';
+import LogPanel from './LogPanel';
 import { computeScore, scoreForCard } from './unoScoring';
 
 const STORAGE_KEY = 'uno-scoreboard-v1';
@@ -49,6 +51,12 @@ function App() {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
+  }, []);
+
+  // Warm up the detector on mount so the first scan doesn't wait on the
+  // model download / session creation.
+  useEffect(() => {
+    preloadModel();
   }, []);
 
   const addPlayer = () => {
@@ -527,6 +535,8 @@ function App() {
           </div>
         </div>
       )}
+
+      {process.env.NODE_ENV === 'development' && <LogPanel />}
     </div>
   );
 }

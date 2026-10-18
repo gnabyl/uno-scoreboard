@@ -1,7 +1,7 @@
-// UNO scoring rules (standard):
+// UNO scoring rules (UNO Flip):
 //   Number cards (0-9)  -> face value
-//   Skip / Reverse / Draw Two -> 20 points
-//   Wild / Wild Draw Four -> 50 points
+//   Skip / Skip All / Reverse / Flip / Draw One / Draw Five -> 20 points
+//   Wild / Wild Draw Two / Wild Draw Until -> 50 points
 //
 // The Roboflow "uno-cards" model returns numeric labels "0"-"14":
 //   0-9   -> number cards (face value)
@@ -38,7 +38,7 @@ export function scoreForCard(name) {
 
   // Action cards are 20 points (check before numbers, since
   // "draw 2" contains a digit).
-  if (/skip|reverse|draw\s*two|draw\s*2|\+2/.test(text)) return 20;
+  if (/skip|reverse|flip|draw\s*(one|two|five|1|2|5)|\+2/.test(text)) return 20;
 
   // Number cards score their face value.
   const digit = text.match(/\b(\d)\b/) || text.match(/(\d)/);
