@@ -14,7 +14,6 @@ import { log } from './debugLog';
 
 const INPUT_SIZE = 640;
 const DEFAULT_CONFIDENCE = 0.25;
-const NMS_IOU = 0.5;
 
 // Must match `CLASSES` order in data/compose_hands.py (see data/classes.txt).
 const CLASS_NAMES = [
@@ -149,17 +148,6 @@ async function bitmapToTensor(bitmap) {
   };
 }
 
-function iou(a, b) {
-  const x1 = Math.max(a[0], b[0]);
-  const y1 = Math.max(a[1], b[1]);
-  const x2 = Math.min(a[2], b[2]);
-  const y2 = Math.min(a[3], b[3]);
-  const inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
-  const areaA = (a[2] - a[0]) * (a[3] - a[1]);
-  const areaB = (b[2] - b[0]) * (b[3] - b[1]);
-  return inter / (areaA + areaB - inter || 1);
-}
-
 /**
  * Detects card types in an image file.
  *
@@ -207,17 +195,12 @@ export async function detectCards(file) {
       });
     }
 
-    // Highest confidence first, then class-agnostic NMS to drop duplicate
-    // labels that land on the same card (e.g. flip vs wild_draw_until).
+    // Sort by confidence for stable UI ordering. The ONNX graph already
+    // applies per-class NMS, so overlapping cards are kept — each detection
+    // is one full-card box.
     detections.sort((a, b) => b.conf - a.conf);
-    const kept = [];
-    for (const det of detections) {
-      if (!kept.some((k) => iou(k.box, det.box) > NMS_IOU)) {
-        kept.push(det);
-      }
-    }
 
-    const annotations = kept.map((det) => ({
+    const annotations = detections.map((det) => ({
       name: CLASS_NAMES[det.cls] ?? String(det.cls),
       conf: det.conf,
       box: det.box,
