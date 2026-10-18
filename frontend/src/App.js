@@ -529,7 +529,12 @@ function App() {
                                 disabled={!modelReady}
                                 onClick={() => openCamera(round.id, p.id)}
                               >
-                                📷
+                                <span
+                                  className="block -translate-y-[0.22em]"
+                                  aria-hidden="true"
+                                >
+                                  📷
+                                </span>
                               </button>
                             </div>
                           </td>
