@@ -2,6 +2,58 @@
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
+## Multiplayer rooms (Supabase)
+
+Rooms live in Postgres and are reached through Supabase RPCs; clients never
+write tables directly.
+
+### One-time setup
+
+1. **Enable anonymous sign-ins** — Supabase dashboard → Authentication →
+   Providers → Anonymous → Enable. Each device gets a stable anonymous user on
+   first visit. Without this toggle every RPC fails with `auth_required`.
+2. **Apply the schema** — run
+   [`../supabase/migrations/20261018201500_init_rooms.sql`](../supabase/migrations/20261018201500_init_rooms.sql)
+   in the SQL editor, or `supabase db push` if you use the CLI.
+3. **Set the client env vars** locally in `.env` and in Vercel for every
+   environment (the Vercel Supabase integration injects `SUPABASE_URL` and
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY`, but Create React App only exposes
+   `REACT_APP_*` names to the browser):
+
+   ```
+   REACT_APP_SUPABASE_URL=...
+   REACT_APP_SUPABASE_ANON_KEY=...
+   ```
+
+### How it works
+
+- Every mutation is a single RPC (`cmd_add_round`, `cmd_set_score`, …) carrying
+  `p_base_version` and `p_request_id`.
+- Room codes are 8 characters from a 31-character alphabet. `join_room` and
+  `create_room` each allow 10 calls per minute and 50 per hour per identity
+  (`PT429`), so codes cannot be enumerated and rooms cannot be mass-created.
+- Each room accepts up to 120 mutations per minute and 600 per hour. The count
+  comes from `room_events`, so replaying a `request_id` is free and only
+  committed writes consume the budget.
+- The server bumps `rooms.version` with a compare-and-swap, which serializes
+  writes per room. A stale `base_version` raises `PT409`; retrying the same
+  `request_id` is replayed instead of rejected.
+- Clients subscribe to `rooms.version` over Realtime and refetch
+  [`get_room`](./src/api/rooms.js) on every bump, so a dropped event only
+  delays a refresh and never loses state.
+- A blank score is `NULL`. Totals and round winners stay derived on the client;
+  nothing aggregate is stored.
+- The API layer is [`src/api/rooms.js`](./src/api/rooms.js) with the client in
+  [`src/api/supabase.js`](./src/api/supabase.js).
+
+### Conflict policy
+
+`setScore` retries once automatically when the conflicting change touched a
+*different* cell; if the same cell changed it throws `ScoreConflictError` with
+the fresh snapshot. Destructive operations surface `VersionConflictError` so the
+UI can ask for confirmation.
+
+
 ## Available Scripts
 
 In the project directory, you can run:
