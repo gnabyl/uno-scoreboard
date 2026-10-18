@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import {
   getRoom,
   joinRoom,
+  kickPlayer,
   normalizeRoomCode,
   subscribeToRoom,
 } from '../api/rooms';
@@ -96,6 +97,24 @@ export default function RoomPage() {
       await refresh();
     } catch (err) {
       setError(describeRoomError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleKick = async (player) => {
+    if (!window.confirm(`Kick ${player.name}? Their scores will be removed.`)) {
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    try {
+      await kickPlayer(code, player.id, snapshot.version);
+      await refresh();
+    } catch (err) {
+      setError(describeRoomError(err));
+      await refresh();
     } finally {
       setBusy(false);
     }
@@ -231,7 +250,7 @@ export default function RoomPage() {
               {snapshot.players.map((player, index) => (
                 <li
                   key={player.id}
-                  className="flex items-center gap-2 rounded-full border border-edge bg-raised px-3 py-1.5 text-sm text-fg"
+                  className="flex items-center gap-2 rounded-full border border-edge bg-raised py-1.5 pl-3 pr-2 text-sm text-fg"
                 >
                   <span
                     className={`h-2.5 w-2.5 rounded-full ${
@@ -239,11 +258,21 @@ export default function RoomPage() {
                     }`}
                     aria-hidden="true"
                   />
-                  {player.name}
-                  {player.id === snapshot.me && (
+                  <span>{player.name}</span>
+                  {player.id === snapshot.me ? (
                     <span className="text-[11px] font-semibold uppercase tracking-wide text-accent">
                       you
                     </span>
+                  ) : (
+                    <button
+                      className="ml-auto rounded-md border-none bg-transparent px-1.5 text-base leading-none text-faint opacity-70 transition hover:bg-[rgba(255,107,107,0.12)] hover:text-[#ff6b6b] disabled:opacity-40"
+                      title={`Kick ${player.name}`}
+                      aria-label={`Kick ${player.name}`}
+                      disabled={busy}
+                      onClick={() => handleKick(player)}
+                    >
+                      ×
+                    </button>
                   )}
                 </li>
               ))}

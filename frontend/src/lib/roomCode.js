@@ -28,6 +28,8 @@ export function describeRoomError(err) {
       return 'Room codes are 8 characters (no 0, O, 1, I or L).';
     case 'score_conflict':
       return 'Another player changed that score.';
+    case 'version_conflict':
+      return 'The room changed since you loaded it. Try again.';
     default:
       return err?.message || 'Something went wrong.';
   }

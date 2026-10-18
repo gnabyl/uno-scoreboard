@@ -140,6 +140,16 @@ export async function deletePlayer(code, playerId, baseVersion) {
   return asVersion(data);
 }
 
+export async function kickPlayer(code, playerId, baseVersion) {
+  const data = await call('cmd_kick_player', {
+    p_code: normalizeRoomCode(code),
+    p_player_id: playerId,
+    p_base_version: baseVersion,
+    p_request_id: requestId(),
+  });
+  return asVersion(data);
+}
+
 export async function addRound(code, baseVersion, roundId = requestId()) {
   const data = await call('cmd_add_round', {
     p_code: normalizeRoomCode(code),
