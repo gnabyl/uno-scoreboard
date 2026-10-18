@@ -1,23 +1,14 @@
-// UNO scoring rules (UNO Flip):
+// UNO Flip scoring rules:
 //   Number cards (0-9)  -> face value
 //   Skip / Skip All / Reverse / Flip / Draw One / Draw Five -> 20 points
 //   Wild / Wild Draw Two / Wild Draw Until -> 50 points
 //
-// The Roboflow "uno-cards" model returns numeric labels "0"-"14":
-//   0-9   -> number cards (face value)
-//   10-14 -> special cards (mapped below)
-const SPECIAL_CLASS_POINTS = {
-  10: 50, // Wild Draw Four
-  11: 20, // Draw Two
-  12: 20, // Reverse
-  13: 20, // Skip
-  14: 50, // Wild (change color)
-};
+// Card names come from the in-browser detector (src/api/localModel.js) as
+// class names like "7", "skip", "wild_color", "draw_five". Matching below is
+// deliberately tolerant (hyphens, spaces, colour prefixes, "+2", etc.).
 
 /**
  * Returns the point value for a single detected card name.
- * The name can be anything the recognition API returns, e.g.
- * "red 7", "blue skip", "wild draw four", "yellow draw 2".
  *
  * @param {string} name
  * @returns {number}
@@ -25,10 +16,6 @@ const SPECIAL_CLASS_POINTS = {
 export function scoreForCard(name) {
   const raw = String(name ?? '').trim();
   if (!raw) return 0;
-
-  // Numeric special-card labels from the model (e.g. "10", "14").
-  const special = SPECIAL_CLASS_POINTS[raw];
-  if (special !== undefined) return special;
 
   const text = raw.toLowerCase().replace(/[-_/]+/g, ' ');
 

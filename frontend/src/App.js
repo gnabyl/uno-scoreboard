@@ -26,6 +26,37 @@ function loadState() {
   return { players: [], rounds: [] };
 }
 
+async function annotatePreview(file, detections, width, height) {
+  const bitmap = await createImageBitmap(file);
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0, width, height);
+
+    ctx.strokeStyle = '#ff4d4d';
+    ctx.fillStyle = '#ff4d4d';
+    ctx.lineWidth = Math.max(2, Math.round(Math.min(width, height) / 300));
+    const fontSize = Math.max(12, Math.round(height / 40));
+    ctx.font = `${fontSize}px sans-serif`;
+
+    for (const det of detections) {
+      const [x1, y1, x2, y2] = det.box;
+      ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+      const label = det.name;
+      const textWidth = ctx.measureText(label).width;
+      ctx.fillRect(x1, Math.max(0, y1 - fontSize - 6), textWidth + 8, fontSize + 6);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(label, x1 + 4, Math.max(fontSize, y1 - 4));
+      ctx.fillStyle = '#ff4d4d';
+    }
+    return canvas.toDataURL('image/jpeg', 0.85);
+  } finally {
+    if (typeof bitmap.close === 'function') bitmap.close();
+  }
+}
+
 function App() {
   const initial = useMemo(loadState, []);
   const [players, setPlayers] = useState(initial.players);
@@ -214,9 +245,23 @@ function App() {
     setScan((prev) => (prev ? { ...prev, previewUrl, status: 'loading' } : prev));
 
     try {
-      const cards = await recognizeCards(file);
+      const result = await recognizeCards(file);
+      const annotatedPreview = await annotatePreview(
+        file,
+        result.detections,
+        result.width,
+        result.height
+      );
       setScan((prev) =>
-        prev ? { ...prev, status: 'done', cards, score: computeScore(cards) } : prev
+        prev
+          ? {
+              ...prev,
+              status: 'done',
+              cards: result.cards,
+              annotatedPreview,
+              score: computeScore(result.cards),
+            }
+          : prev
       );
     } catch (err) {
       setScan((prev) =>
@@ -490,7 +535,7 @@ function App() {
                 {scan.previewUrl && (
                   <img
                     className="scan-preview"
-                    src={scan.previewUrl}
+                    src={scan.annotatedPreview || scan.previewUrl}
                     alt="Captured cards"
                   />
                 )}

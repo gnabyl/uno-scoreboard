@@ -46,9 +46,9 @@ let sessionPromise = null;
 
 async function fetchModelBuffer() {
   // Production: ask the Vercel function for a fresh signed URL, then download
-  // the bytes ourselves. We fetch explicitly (rather than handing the signed
-  // URL to onnxruntime-web) because onnxruntime-web rewrites the URL's query
-  // string, which destroys the Vercel Blob signature.
+  // the bytes ourselves. Fetching explicitly keeps the signed query string
+  // intact and lets us log download progress before handing bytes to
+  // onnxruntime-web.
   try {
     const res = await fetch('/api/model');
     if (res.ok) {
@@ -161,14 +161,21 @@ function iou(a, b) {
 }
 
 /**
- * Detects card types in an image file and returns their class names.
+ * Detects card types in an image file.
  *
  * @param {File|Blob} file
- * @returns {Promise<string[]>}
+ * @returns {Promise<{
+ *   cards: string[],
+ *   detections: Array<{ name: string, conf: number, box: number[] }>,
+ *   width: number,
+ *   height: number
+ * }>}
  */
 export async function detectCards(file) {
   const session = await getSession();
   const bitmap = await createImageBitmap(file);
+  const width = bitmap.width;
+  const height = bitmap.height;
   try {
     const { tensor, scale, padX, padY } = await bitmapToTensor(bitmap);
     log('running inference…', { image: `${bitmap.width}x${bitmap.height}` });
@@ -210,9 +217,14 @@ export async function detectCards(file) {
       }
     }
 
-    const names = kept.map((det) => CLASS_NAMES[det.cls] ?? String(det.cls));
-    log('detection complete', { count: names.length, cards: names });
-    return names;
+    const annotations = kept.map((det) => ({
+      name: CLASS_NAMES[det.cls] ?? String(det.cls),
+      conf: det.conf,
+      box: det.box,
+    }));
+    const cards = annotations.map((det) => det.name);
+    log('detection complete', { count: cards.length, cards });
+    return { cards, detections: annotations, width, height };
   } catch (err) {
     log('inference failed', { error: err.message });
     throw err;

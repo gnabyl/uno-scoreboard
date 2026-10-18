@@ -11,6 +11,10 @@ test('scores action cards as 20 points', () => {
   expect(scoreForCard('yellow reverse')).toBe(20);
   expect(scoreForCard('green draw two')).toBe(20);
   expect(scoreForCard('red draw 2')).toBe(20);
+  expect(scoreForCard('flip')).toBe(20);
+  expect(scoreForCard('draw_one')).toBe(20);
+  expect(scoreForCard('draw_five')).toBe(20);
+  expect(scoreForCard('skip_all')).toBe(20);
 });
 
 test('scores wild cards as 50 points', () => {
@@ -25,18 +29,9 @@ test('computes the total of a hand', () => {
   expect(computeScore(null)).toBe(0);
 });
 
-test('handles hyphenated class names from Roboflow', () => {
+test('handles hyphenated class names', () => {
   expect(scoreForCard('red-7')).toBe(7);
   expect(scoreForCard('draw-two')).toBe(20);
   expect(scoreForCard('wild-draw-four')).toBe(50);
   expect(computeScore(['yellow-3', 'draw-two', 'wild-draw-four'])).toBe(73);
-});
-
-test('scores the model numeric labels 10-14 as special cards', () => {
-  expect(scoreForCard('10')).toBe(50);
-  expect(scoreForCard('11')).toBe(20);
-  expect(scoreForCard('12')).toBe(20);
-  expect(scoreForCard('13')).toBe(20);
-  expect(scoreForCard('14')).toBe(50);
-  expect(computeScore(['7', '10', '14', '7'])).toBe(114);
 });

@@ -11,7 +11,7 @@ import { detectCards } from './localModel';
  * Recognises cards in a photo.
  *
  * @param {File|Blob} imageFile
- * @returns {Promise<string[]>} detected card names
+ * @returns {Promise<{ cards: string[], detections: Array, width: number, height: number }>}
  */
 export async function recognizeCards(imageFile) {
   return detectCards(imageFile);
