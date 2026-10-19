@@ -7,7 +7,7 @@ import {
   subscribeToRoom,
   type RoomSnapshot,
 } from '../api-helper/rooms';
-import RoomBoard from '../RoomBoard';
+import RoomBoard from '../components/RoomBoard';
 import { describeRoomError } from '../lib/roomCode';
 import { useTranslation } from '../i18n';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';

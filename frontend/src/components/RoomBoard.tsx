@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { recognizeCards } from './api-helper/cardRecognition';
-import { preloadModel } from './api-helper/localModel';
+import { recognizeCards } from '../api-helper/cardRecognition';
+import { preloadModel } from '../api-helper/localModel';
 import LogPanel from './LogPanel';
-import { computeScore, scoreForCard } from './unoScoring';
-import { addPlayer, addRound, deletePlayer, deleteRound, setScore } from './api-helper/rooms';
-import { describeRoomError } from './lib/roomCode';
-import { useTranslation } from './i18n';
-import { BTN_ACCENT, BTN_GHOST, BTN_PRIMARY, ErrorNotice, INPUT } from './components/ui';
-import type { RoomSnapshot } from './api-helper/rooms';
-import { Modal } from './components/modal';
+import { computeScore, scoreForCard } from '../lib/unoScoring';
+import { addPlayer, addRound, deletePlayer, deleteRound, setScore } from '../api-helper/rooms';
+import { describeRoomError } from '../lib/roomCode';
+import { useTranslation } from '../i18n';
+import { BTN_ACCENT, BTN_GHOST, BTN_PRIMARY, ErrorNotice, INPUT } from './ui';
+import type { RoomSnapshot } from '../api-helper/rooms';
+import { Modal } from './modal';
 
 const IS_TOUCH = (() => {
   if (typeof window === 'undefined') return false;

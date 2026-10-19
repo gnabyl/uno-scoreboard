@@ -1,11 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import RoomBoard from './RoomBoard';
 
-jest.mock('./api-helper/localModel', () => ({
+jest.mock('../api-helper/localModel', () => ({
   preloadModel: () => Promise.resolve(null),
 }));
 
-jest.mock('./api-helper/rooms', () => ({
+jest.mock('../api-helper/rooms', () => ({
   addPlayer: jest.fn().mockResolvedValue({ version: 2, playerId: 'x' }),
   addRound: jest.fn().mockResolvedValue({ version: 2, roundId: 'x' }),
   deletePlayer: jest.fn().mockResolvedValue(2),
@@ -14,7 +14,7 @@ jest.mock('./api-helper/rooms', () => ({
   setScore: jest.fn().mockResolvedValue(2),
 }));
 
-const { addPlayer, setScore } = require('./api-helper/rooms');
+const { addPlayer, setScore } = require('../api-helper/rooms');
 
 const snapshot = {
   version: 3,
