@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { recognizeCards } from './api/cardRecognition';
-import { preloadModel, type Detection } from './api/localModel';
+import { preloadModel } from './api/localModel';
 import LogPanel from './LogPanel';
 import { computeScore, scoreForCard } from './unoScoring';
 import {
@@ -10,6 +10,7 @@ import {
   setScore,
 } from './api/rooms';
 import { describeRoomError } from './lib/roomCode';
+import { useTranslation } from './i18n';
 import { BTN_ACCENT, BTN_GHOST, BTN_PRIMARY, ErrorNotice } from './components/ui';
 import type { RoomSnapshot } from './api/rooms';
 
@@ -35,9 +36,9 @@ const CAMERA_BTN =
 
 async function annotatePreview(
   file: Blob,
-  detections: Detection[],
   width: number,
-  height: number
+  height: number,
+  label: string
 ): Promise<string> {
   const bitmap = await createImageBitmap(file);
   try {
@@ -47,10 +48,8 @@ async function annotatePreview(
     const ctx = canvas.getContext('2d');
     ctx.drawImage(bitmap, 0, 0, width, height);
 
-    const count = detections.length;
     const fontSize = Math.max(28, Math.round(height / 16));
     ctx.font = `700 ${fontSize}px sans-serif`;
-    const label = `${count} card${count === 1 ? '' : 's'}`;
     const textWidth = ctx.measureText(label).width;
     ctx.fillStyle = 'rgba(15, 21, 33, 0.85)';
     ctx.fillRect(8, 8, textWidth + 16, fontSize + 12);
@@ -145,6 +144,7 @@ export default function RoomBoard({
   snapshot: RoomSnapshot;
   onRefresh: () => void | Promise<void>;
 }) {
+  const t = useTranslation();
   const players = snapshot.players;
   const rounds = snapshot.rounds;
   const version = Number(snapshot.version) || 0;
@@ -216,7 +216,7 @@ export default function RoomBoard({
       await action();
       await onRefresh();
     } catch (err) {
-      setError(describeRoomError(err));
+      setError(describeRoomError(err, t));
       await onRefresh();
     } finally {
       setBusy(false);
@@ -227,7 +227,7 @@ export default function RoomBoard({
     const target = players.find((p) => p.id === id);
     if (
       target &&
-      !window.confirm(`Remove ${target.name}? They will be kicked and their scores removed.`)
+      !window.confirm(t('board.removePlayerConfirm', { name: target.name }))
     ) {
       return;
     }
@@ -239,7 +239,7 @@ export default function RoomBoard({
   };
 
   const handleRemoveRound = (id: string) => {
-    if (!window.confirm('Remove this round?')) return;
+    if (!window.confirm(t('board.removeRoundConfirm'))) return;
     runMutation(() => deleteRound(code, id, version));
   };
 
@@ -338,9 +338,7 @@ export default function RoomBoard({
         videoRef.current.play().catch(() => { });
       }
     } catch {
-      setCameraError(
-        'Could not access the camera. Please allow camera access, or use “Upload image”.'
-      );
+      setCameraError(t('board.cameraError'));
     }
   };
 
@@ -379,11 +377,12 @@ export default function RoomBoard({
 
     try {
       const result = await recognizeCards(file);
+      const count = result.detections.length;
       const annotatedPreview = await annotatePreview(
         file,
-        result.detections,
         result.width,
-        result.height
+        result.height,
+        t(count === 1 ? 'board.cardCountSingular' : 'board.cardCountPlural', { count })
       );
       setScan((prev) =>
         prev
@@ -399,7 +398,7 @@ export default function RoomBoard({
     } catch (err) {
       setScan((prev) =>
         prev
-          ? { ...prev, status: 'error', error: err.message || 'Recognition failed.' }
+          ? { ...prev, status: 'error', error: err.message || t('board.recognitionFailed') }
           : prev
       );
     }
@@ -450,15 +449,13 @@ export default function RoomBoard({
           <span className="mb-3 block text-[44px]" aria-hidden="true">
             🎴
           </span>
-          <h2 className="mb-2 text-2xl font-bold text-white">No players yet</h2>
-          <p className="m-0 text-muted">
-            Share the room link so players can join.
-          </p>
+          <h2 className="mb-2 text-2xl font-bold text-white">{t('board.noPlayers.title')}</h2>
+          <p className="m-0 text-muted">{t('board.noPlayers.body')}</p>
         </div>
       ) : (
         <>
           <section className="mb-3 shrink-0 rounded-2xl border border-edge bg-panel p-4 shadow-panel">
-            <h2 className="sr-only">Leaderboard</h2>
+            <h2 className="sr-only">{t('board.leaderboard')}</h2>
             <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
               {players.map((p, i) => {
                 const winner = isWinner(p.id);
@@ -478,13 +475,13 @@ export default function RoomBoard({
                     <span className="max-w-[96px] truncate">{p.name}</span>
                     {p.id === me ? (
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-accent">
-                        you
+                        {t('board.you')}
                       </span>
                     ) : (
                       <button
                         className="rounded border-none bg-transparent p-0 text-base leading-none text-faint opacity-70 transition hover:text-[#ff6b6b]"
-                        title={`Remove ${p.name}`}
-                        aria-label={`Remove ${p.name}`}
+                        title={t('board.removePlayer', { name: p.name })}
+                        aria-label={t('board.removePlayer', { name: p.name })}
                         disabled={busy}
                         onClick={() => handleRemovePlayer(p.id)}
                       >
@@ -493,7 +490,7 @@ export default function RoomBoard({
                     )}
                     <span className={total < 0 && !winner ? 'text-[#ff4d4d]' : ''}>{total}</span>
                     {winner && (
-                      <span className="text-[14px]" aria-label="Leading player">
+                      <span className="text-[14px]" aria-label={t('board.leadingPlayer')}>
                         👑
                       </span>
                     )}
@@ -506,7 +503,7 @@ export default function RoomBoard({
           <div className="min-h-0 flex-1 overflow-y-auto">
             {rounds.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-edge bg-panel px-5 py-10 text-center text-sm text-faint">
-                No rounds yet — press “+ New round” to start scoring.
+                {t('board.noRounds')}
               </div>
             ) : (
               <ol className="m-0 flex list-none flex-col gap-3 p-0">
@@ -533,11 +530,13 @@ export default function RoomBoard({
                           aria-expanded={!isCollapsed}
                         >
                           <span className="text-sm font-bold text-muted">
-                            Round {roundIndex + 1}
+                            {t('board.round', { n: roundIndex + 1 })}
                           </span>
                           <span className="flex min-w-0 items-center gap-2 text-xs">
                             {winnerName ? (
-                              <span className="truncate text-[#7dff9a]">{winnerName} won</span>
+                              <span className="truncate text-[#7dff9a]">
+                                {t('board.roundWon', { name: winnerName })}
+                              </span>
                             ) : anyScored ? (
                               <span className="text-faint">Σ {summary.sum}</span>
                             ) : null}
@@ -548,8 +547,8 @@ export default function RoomBoard({
                         </button>
                         <button
                           className="mr-3 rounded border-none bg-transparent p-0 text-lg leading-none text-faint transition hover:text-[#ff6b6b]"
-                          title="Remove round"
-                          aria-label={`Remove round ${roundIndex + 1}`}
+                          title={t('board.removeRoundTitle')}
+                          aria-label={t('board.removeRound', { n: roundIndex + 1 })}
                           disabled={busy}
                           onClick={() => handleRemoveRound(round.id)}
                         >
@@ -582,7 +581,7 @@ export default function RoomBoard({
                                 ) : (
                                   <ScoreCell
                                     value={raw}
-                                    label={`${p.name} round ${roundIndex + 1} score`}
+                                    label={t('board.scoreLabel', { name: p.name, n: roundIndex + 1 })}
                                     busy={busy}
                                     onCommit={(value) => handleSetScore(round.id, p.id, value)}
                                   />
@@ -590,9 +589,14 @@ export default function RoomBoard({
                                 <button
                                   className={CAMERA_BTN}
                                   title={
-                                    modelReady ? `Scan ${p.name}'s cards` : 'Detector still loading…'
+                                    modelReady
+                                      ? t('board.scanTitle', { name: p.name })
+                                      : t('board.detectorLoading')
                                   }
-                                  aria-label={`Scan ${p.name}'s cards for round ${roundIndex + 1}`}
+                                  aria-label={t('board.scanAria', {
+                                    name: p.name,
+                                    n: roundIndex + 1,
+                                  })}
                                   disabled={!modelReady}
                                   onClick={() => openCamera(round.id, p.id)}
                                 >
@@ -620,7 +624,7 @@ export default function RoomBoard({
           onClick={handleAddRound}
           disabled={players.length === 0 || busy}
         >
-          + New round
+          {t('board.newRound')}
         </button>
       </div>
 
@@ -650,13 +654,13 @@ export default function RoomBoard({
             className="relative max-h-[96vh] w-full max-w-none overflow-y-auto rounded-[14px] border border-edge bg-panel p-4 shadow-modal sm:max-h-[90vh] sm:max-w-[420px] sm:rounded-[18px] sm:p-6"
             role="dialog"
             aria-modal="true"
-            aria-label="Card scan"
+            aria-label={t('board.scanDialog')}
             onClick={(event) => event.stopPropagation()}
           >
             <button
               className="absolute right-3 top-3 cursor-pointer rounded-lg border-none bg-transparent px-2 py-1 text-[22px] leading-none text-faint hover:bg-edge hover:text-white"
               onClick={closeScan}
-              aria-label="Close"
+              aria-label={t('common.close')}
             >
               ×
             </button>
@@ -673,12 +677,12 @@ export default function RoomBoard({
                   <p className="m-0 text-center text-sm text-[#ffb3b3]">{cameraError}</p>
                 ) : (
                   <p className="m-0 text-center text-sm text-muted">
-                    {modelReady ? 'Aim at the cards, then capture.' : 'Loading card detector…'}
+                    {modelReady ? t('board.aim') : t('board.loadingDetector')}
                   </p>
                 )}
                 <div className="flex justify-between gap-2.5 max-sm:flex-wrap max-sm:[&>button]:min-h-12 max-sm:[&>button]:text-[15px] [&>button]:flex-1">
                   <button className={BTN_GHOST} onClick={closeScan}>
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                   <button
                     className={BTN_GHOST}
@@ -690,7 +694,7 @@ export default function RoomBoard({
                       }
                     }}
                   >
-                    Upload image
+                    {t('board.uploadImage')}
                   </button>
                   <button
                     className={`${BTN_ACCENT} flex items-center justify-center gap-2`}
@@ -700,7 +704,7 @@ export default function RoomBoard({
                     <span className="text-base leading-none" aria-hidden="true">
                       ⏺
                     </span>
-                    Capture
+                    {t('board.capture')}
                   </button>
                 </div>
               </div>
@@ -709,7 +713,7 @@ export default function RoomBoard({
             {scan.status === 'loading' && (
               <div className="flex flex-col items-center gap-4 py-6 text-muted">
                 <div className="h-10 w-10 animate-spin rounded-full border-4 border-edge border-t-accent [animation-duration:0.8s]" />
-                <p className="m-0">Recognizing cards…</p>
+                <p className="m-0">{t('board.recognizing')}</p>
               </div>
             )}
 
@@ -723,19 +727,21 @@ export default function RoomBoard({
                   className={BTN_PRIMARY}
                   onClick={() => startCamera(scan.roundId, scan.playerId)}
                 >
-                  Try again
+                  {t('common.tryAgain')}
                 </button>
               </div>
             )}
 
             {scan.status === 'done' && (
               <div>
-                <h3 className="mb-3.5 text-[17px] font-bold text-white">Detected cards</h3>
+                <h3 className="mb-3.5 text-[17px] font-bold text-white">
+                  {t('board.detectedCards')}
+                </h3>
                 {scan.previewUrl && (
                   <img
                     className="mb-3.5 max-h-[260px] w-full rounded-xl border border-edge bg-deep object-contain"
                     src={scan.annotatedPreview || scan.previewUrl}
-                    alt="Captured cards"
+                    alt={t('board.capturedAlt')}
                   />
                 )}
                 {scan.cards && scan.cards.length > 0 ? (
@@ -753,13 +759,11 @@ export default function RoomBoard({
                     ))}
                   </ul>
                 ) : (
-                  <p className="mb-3.5 text-sm text-faint">
-                    No cards were detected. Try taking the photo again.
-                  </p>
+                  <p className="mb-3.5 text-sm text-faint">{t('board.noCards')}</p>
                 )}
                 <div className="mb-[18px] flex items-center justify-between gap-3">
                   <label className="text-sm font-semibold text-muted" htmlFor="scan-score">
-                    Total score
+                    {t('board.totalScore')}
                   </label>
                   <input
                     id="scan-score"
@@ -776,10 +780,10 @@ export default function RoomBoard({
                 </div>
                 <div className="flex justify-end gap-2.5">
                   <button className={BTN_GHOST} onClick={closeScan}>
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                   <button className={BTN_ACCENT} onClick={applyScannedScore}>
-                    Apply score
+                    {t('board.applyScore')}
                   </button>
                 </div>
               </div>

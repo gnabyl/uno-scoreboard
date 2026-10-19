@@ -16,21 +16,28 @@ export function parseRoomCode(input: unknown): string {
   return segments.length > 0 ? segments[segments.length - 1] : raw;
 }
 
-export function describeRoomError(err: { code?: string | null; message?: string } | null | undefined): string {
+import type { TranslateFn } from '../i18n';
+
+export function describeRoomError(
+  err: { code?: string | null; message?: string } | null | undefined,
+  t: TranslateFn
+): string {
   switch (err?.code) {
     case 'rate_limited':
-      return 'Too many attempts. Wait a minute and try again.';
+      return t('error.rateLimited');
     case 'not_found':
-      return 'Room not found. Check the code and try again.';
+      return t('error.notFound');
     case 'not_a_member':
-      return 'Join this room to see it.';
+      return t('error.notAMember');
     case 'invalid_code':
-      return 'Room codes are 8 characters (no 0, O, 1, I or L).';
+      return t('error.invalidCode');
     case 'score_conflict':
-      return 'Another player changed that score.';
+      return t('error.scoreConflict');
     case 'version_conflict':
-      return 'The room changed since you loaded it. Try again.';
+      return t('error.versionConflict');
     default:
-      return err?.message || 'Something went wrong.';
+      // Server messages are not localized, but they are more specific than a
+      // generic fallback, so prefer them when present.
+      return err?.message || t('error.generic');
   }
 }

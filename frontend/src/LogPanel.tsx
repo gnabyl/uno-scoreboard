@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { clear, getEntries, subscribe } from './api/debugLog';
+import { useTranslation } from './i18n';
 
 export default function LogPanel() {
+  const t = useTranslation();
   const [entries, setEntries] = useState(getEntries());
   const [expanded, setExpanded] = useState(false);
 
@@ -16,7 +18,7 @@ export default function LogPanel() {
     ? `${latest.message}${
         latest.data !== undefined ? ' ' + JSON.stringify(latest.data) : ''
       }`
-    : 'Idle';
+    : t('log.idle');
 
   return (
     <div
@@ -36,7 +38,7 @@ export default function LogPanel() {
           onClick={(ev) => ev.stopPropagation()}
         >
           {entries.length === 0 ? (
-            <div className="text-[#777]">No logs yet.</div>
+            <div className="text-[#777]">{t('log.empty')}</div>
           ) : (
             entries.map((e, i) => (
               <div key={i} className="whitespace-pre-wrap break-words">
@@ -55,7 +57,7 @@ export default function LogPanel() {
               clear();
             }}
           >
-            Clear
+            {t('log.clear')}
           </button>
         </div>
       )}

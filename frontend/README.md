@@ -169,3 +169,34 @@ The UI is styled with [Tailwind CSS](https://tailwindcss.com/). Vite runs Tailwi
 - Design tokens (colors, shadows, fonts) live in [`tailwind.config.ts`](./tailwind.config.ts).
 - [`src/index.css`](./src/index.css) loads the Tailwind layers and global body styles.
 - Utility classes are applied directly in JSX. Shared class strings for buttons, score fields, and table cells are defined at the top of [`src/components/ui.tsx`](./src/components/ui.tsx).
+
+## Localization
+
+The app ships in English and Vietnamese. There is no i18n library — the setup
+is a small React context in [`src/i18n/`](./src/i18n/):
+
+- [`translations.ts`](./src/i18n/translations.ts) holds one flat dictionary per
+  language. English is the source of truth: its keys define the `TranslationKey`
+  union, and every other language is typed as `Record<TranslationKey, string>`,
+  so a missing translation is a compile error.
+- [`index.tsx`](./src/i18n/index.tsx) exports `I18nProvider`, `useTranslation`
+  (just the `t` function) and `useI18n` (language plus a setter). The provider is
+  mounted in [`src/index.tsx`](./src/index.tsx); it keeps `<html lang>` and the
+  document title in sync.
+- Strings interpolate `{name}`-style tokens, e.g.
+  `t('board.round', { n: roundIndex + 1 })`.
+
+The active language is picked on first load from `localStorage` (key
+`uno.lang`), then the browser's preferred languages, then English. Users change
+it with the header [`LanguageSwitcher`](./src/components/LanguageSwitcher.tsx),
+which persists the choice.
+
+### Adding a language
+
+1. Add the language to `LANGUAGES` in [`src/i18n/index.tsx`](./src/i18n/index.tsx).
+2. Add its dictionary to `dictionaries` there.
+3. Copy the keys from `en` and translate the values — TypeScript flags anything
+   missing.
+
+`describeRoomError` in [`src/lib/roomCode.ts`](./src/lib/roomCode.ts) takes the
+`t` function so API errors are shown in the active language.

@@ -9,6 +9,7 @@ import {
 } from '../api/rooms';
 import RoomBoard from '../RoomBoard';
 import { describeRoomError } from '../lib/roomCode';
+import { useTranslation } from '../i18n';
 import {
   BTN_ACCENT,
   BTN_GHOST,
@@ -21,6 +22,7 @@ import {
 
 export default function RoomPage() {
   const { code: routeCode } = useParams();
+  const t = useTranslation();
 
   const code = useMemo(() => {
     try {
@@ -56,11 +58,11 @@ export default function RoomPage() {
       } else if (err?.code === 'not_found') {
         setStatus('missing');
       } else {
-        setError(describeRoomError(err));
+        setError(describeRoomError(err, t));
         setStatus('error');
       }
     }
-  }, [code]);
+  }, [code, t]);
 
   useEffect(() => {
     refresh();
@@ -80,7 +82,7 @@ export default function RoomPage() {
     event.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) {
-      setError('Enter your name first.');
+      setError(t('error.enterName'));
       return;
     }
 
@@ -90,7 +92,7 @@ export default function RoomPage() {
       await joinRoom(code, { name: trimmed });
       await refresh();
     } catch (err) {
-      setError(describeRoomError(err));
+      setError(describeRoomError(err, t));
     } finally {
       setBusy(false);
     }
@@ -98,13 +100,17 @@ export default function RoomPage() {
 
   const shareUrl = code ? `${window.location.origin}/r/${code}` : '';
 
-  const copyText = async (text: string | null, what: string) => {
+  const copyText = async (text: string | null, kind: 'code' | 'link') => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(what);
+      setCopied(kind);
       window.setTimeout(() => setCopied(null), 1600);
     } catch {
-      setError(`Could not copy the ${what}. Select it manually.`);
+      setError(
+        t('error.copyFailed', {
+          what: t(kind === 'code' ? 'common.code' : 'common.link'),
+        })
+      );
     }
   };
 
@@ -116,13 +122,13 @@ export default function RoomPage() {
   if (status === 'invalid') {
     content = (
       <section className={`${CARD} mx-auto w-full max-w-[440px] text-center`}>
-        <h2 className="m-0 text-xl font-bold text-white">That link doesn't look right</h2>
+        <h2 className="m-0 text-xl font-bold text-white">{t('room.invalid.title')}</h2>
         <p className="mt-2 text-sm text-muted">
-          Room links look like <span className="font-mono">/r/ABCDEFGH</span> — eight
-          characters, no 0, O, 1, I or L.
+          {t('room.invalid.bodyBefore')}{' '}
+          <span className="font-mono">/r/ABCDEFGH</span> {t('room.invalid.bodyAfter')}
         </p>
         <Link className={`${BTN_PRIMARY} mt-5 inline-block no-underline`} to="/">
-          Back to start
+          {t('common.backToStart')}
         </Link>
       </section>
     );
@@ -131,36 +137,37 @@ export default function RoomPage() {
       <div className="flex flex-1 items-center justify-center py-16 text-muted">
         <div
           className="h-10 w-10 animate-spin rounded-full border-4 border-edge border-t-accent [animation-duration:0.8s]"
-          aria-label="Loading room"
+          aria-label={t('room.loading')}
         />
       </div>
     );
   } else if (status === 'missing') {
     content = (
       <section className={`${CARD} mx-auto w-full max-w-[440px] text-center`}>
-        <h2 className="m-0 text-xl font-bold text-white">Room not found</h2>
+        <h2 className="m-0 text-xl font-bold text-white">{t('room.missing.title')}</h2>
         <p className="mt-2 text-sm text-muted">
-          There is no room with code <span className="font-mono text-fg">{code}</span>.
-          Check the link, or host a new game.
+          {t('room.missing.bodyBefore')}{' '}
+          <span className="font-mono text-fg">{code}</span>
+          {t('room.missing.bodyAfter')}
         </p>
         <Link className={`${BTN_PRIMARY} mt-5 inline-block no-underline`} to="/">
-          Back to start
+          {t('common.backToStart')}
         </Link>
       </section>
     );
   } else if (status === 'error') {
     content = (
       <section className={`${CARD} mx-auto w-full max-w-[440px]`}>
-        <h2 className="m-0 text-xl font-bold text-white">Couldn't open the room</h2>
+        <h2 className="m-0 text-xl font-bold text-white">{t('room.error.title')}</h2>
         <div className="mt-3">
           <ErrorNotice>{error}</ErrorNotice>
         </div>
         <div className="mt-4 flex gap-2.5">
           <button className={BTN_PRIMARY} onClick={refresh}>
-            Try again
+            {t('common.tryAgain')}
           </button>
           <Link className={`${BTN_GHOST} no-underline`} to="/">
-            Back to start
+            {t('common.backToStart')}
           </Link>
         </div>
       </section>
@@ -168,18 +175,18 @@ export default function RoomPage() {
   } else if (status === 'join' || (status === 'member' && !snapshot?.me)) {
     content = (
       <section className={`${CARD} mx-auto w-full max-w-[440px]`}>
-        <h2 className="m-0 text-xl font-bold text-white">Join room {code}</h2>
-        <p className="mt-2 text-sm text-muted">
-          Enter your name. Everyone in the room can edit every score.
-        </p>
+        <h2 className="m-0 text-xl font-bold text-white">
+          {t('room.join.title', { code: code ?? '' })}
+        </h2>
+        <p className="mt-2 text-sm text-muted">{t('room.join.description')}</p>
         <form className="mt-4 flex flex-col gap-3" onSubmit={handleJoin}>
           <label className="sr-only" htmlFor="room-name">
-            Your name
+            {t('common.yourName')}
           </label>
           <input
             id="room-name"
             className={INPUT}
-            placeholder="Your name"
+            placeholder={t('common.yourName')}
             value={name}
             maxLength={20}
             autoComplete="off"
@@ -187,7 +194,7 @@ export default function RoomPage() {
             onChange={(event) => setName(event.target.value)}
           />
           <button className={BTN_ACCENT} type="submit" disabled={busy}>
-            {busy ? 'Joining…' : 'Join room'}
+            {busy ? t('room.join.joining') : t('room.join.submit')}
           </button>
         </form>
         <div className="mt-3">
@@ -216,7 +223,7 @@ export default function RoomPage() {
             to="/"
             className="text-xl font-extrabold tracking-[-0.4px] text-white no-underline sm:text-2xl"
           >
-            UNO Scoreboard
+            {t('app.title')}
           </Link>
           {code && (
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -227,19 +234,19 @@ export default function RoomPage() {
                 className="rounded border-none bg-transparent p-0 text-[11px] font-semibold text-accent hover:underline"
                 onClick={copyCode}
               >
-                {copied === 'code' ? 'Copied!' : 'Copy code'}
+                {copied === 'code' ? t('common.copied') : t('room.copyCode')}
               </button>
               <button
                 className="rounded border-none bg-transparent p-0 text-[11px] font-semibold text-accent hover:underline"
                 onClick={copyLink}
               >
-                {copied === 'link' ? 'Copied!' : 'Copy link'}
+                {copied === 'link' ? t('common.copied') : t('room.copyLink')}
               </button>
             </div>
           )}
         </div>
         <Link className={`${BTN_GHOST} no-underline`} to="/">
-          Leave
+          {t('room.leave')}
         </Link>
       </header>
 

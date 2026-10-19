@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createRoom, normalizeRoomCode } from '../api/rooms';
 import { describeRoomError, parseRoomCode } from '../lib/roomCode';
+import { useTranslation } from '../i18n';
 import {
   BTN_ACCENT,
   BTN_PRIMARY,
@@ -13,6 +14,7 @@ import {
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const t = useTranslation();
   const [hostName, setHostName] = useState('');
   const [joinInput, setJoinInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -22,7 +24,7 @@ export default function LandingPage() {
     event.preventDefault();
     const name = hostName.trim();
     if (!name) {
-      setError('Enter your name first.');
+      setError(t('error.enterName'));
       return;
     }
 
@@ -32,7 +34,7 @@ export default function LandingPage() {
       const room = await createRoom(name);
       navigate(`/r/${room.code}`);
     } catch (err) {
-      setError(describeRoomError(err));
+      setError(describeRoomError(err, t));
     } finally {
       setBusy(false);
     }
@@ -44,7 +46,7 @@ export default function LandingPage() {
       navigate(`/r/${normalizeRoomCode(parseRoomCode(joinInput))}`);
       setError(null);
     } catch {
-      setError('Enter the 8-character room code or paste the room link.');
+      setError(t('landing.join.invalid'));
     }
   };
 
@@ -54,22 +56,19 @@ export default function LandingPage() {
         <Logo />
         <div>
           <h1 className="m-0 text-2xl font-extrabold tracking-[-0.5px] text-white sm:text-[30px]">
-            UNO Scoreboard
+            {t('app.title')}
           </h1>
-          <p className="mt-1 text-xs text-muted sm:text-sm">
-            Scan the cards left in hand each round. Highest total wins.
-          </p>
+          <p className="mt-1 text-xs text-muted sm:text-sm">{t('landing.tagline')}</p>
         </div>
       </header>
 
       <main className="flex flex-1 flex-col justify-center">
         <div className="mb-6 text-center sm:mb-9">
           <h2 className="m-0 text-[26px] font-extrabold tracking-[-0.4px] text-white sm:text-[34px]">
-            Start a game or join one
+            {t('landing.heading')}
           </h2>
           <p className="mx-auto mt-2 max-w-[520px] text-sm text-muted sm:text-base">
-            One shared board for the whole table. No accounts — everyone can edit
-            any score.
+            {t('landing.subheading')}
           </p>
         </div>
 
@@ -83,27 +82,25 @@ export default function LandingPage() {
                 🎲
               </span>
               <h3 id="host-heading" className="m-0 text-lg font-bold text-white">
-                Host a game
+                {t('landing.host.heading')}
               </h3>
             </div>
-            <p className="mb-4 text-sm text-muted">
-              Create a room and share the link. You'll get an 8-character code.
-            </p>
+            <p className="mb-4 text-sm text-muted">{t('landing.host.description')}</p>
             <form className="flex flex-col gap-3" onSubmit={handleHost}>
               <label className="sr-only" htmlFor="host-name">
-                Your name
+                {t('common.yourName')}
               </label>
               <input
                 id="host-name"
                 className={INPUT}
-                placeholder="Your name"
+                placeholder={t('common.yourName')}
                 value={hostName}
                 maxLength={20}
                 autoComplete="off"
                 onChange={(event) => setHostName(event.target.value)}
               />
               <button className={BTN_ACCENT} type="submit" disabled={busy}>
-                {busy ? 'Creating room…' : 'Create room'}
+                {busy ? t('landing.host.creating') : t('landing.host.submit')}
               </button>
             </form>
           </section>
@@ -117,20 +114,18 @@ export default function LandingPage() {
                 🔗
               </span>
               <h3 id="join-heading" className="m-0 text-lg font-bold text-white">
-                Join a game
+                {t('landing.join.heading')}
               </h3>
             </div>
-            <p className="mb-4 text-sm text-muted">
-              Open the link someone shared with you, or type the room code.
-            </p>
+            <p className="mb-4 text-sm text-muted">{t('landing.join.description')}</p>
             <form className="flex flex-col gap-3" onSubmit={handleJoin}>
               <label className="sr-only" htmlFor="join-code">
-                Room code or link
+                {t('landing.join.label')}
               </label>
               <input
                 id="join-code"
                 className={INPUT}
-                placeholder="ABCDEFGH or room link"
+                placeholder={t('landing.join.placeholder')}
                 value={joinInput}
                 autoComplete="off"
                 autoCapitalize="characters"
@@ -138,7 +133,7 @@ export default function LandingPage() {
                 onChange={(event) => setJoinInput(event.target.value)}
               />
               <button className={BTN_PRIMARY} type="submit" disabled={!joinInput.trim()}>
-                Join room
+                {t('landing.join.submit')}
               </button>
             </form>
           </section>
@@ -149,9 +144,7 @@ export default function LandingPage() {
         </div>
       </main>
 
-      <footer className="mt-8 text-center text-xs text-faint">
-        Scores sync across every device in the room.
-      </footer>
+      <footer className="mt-8 text-center text-xs text-faint">{t('landing.footer')}</footer>
     </div>
   );
 }
