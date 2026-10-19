@@ -66,13 +66,13 @@ Each run contains:
 
 ## Model for the frontend
 
-The frontend loads `frontend/public/model/uno-flip-detector.onnx`. After
+The frontend loads `app/public/model/uno-flip-detector.onnx`. After
 retraining, re-export (with NMS baked in) and copy it over (from the repo
 root):
 
 ```powershell
 .\.venv\Scripts\python.exe -c "from ultralytics import YOLO; YOLO('train/runs/uno_flip-X/weights/best.pt').export(format='onnx', nms=True, imgsz=640)"
-Copy-Item train\runs\uno_flip-X\weights\best.onnx frontend\public\model\uno-flip-detector.onnx -Force
+Copy-Item train\runs\uno_flip-X\weights\best.onnx app\public\model\uno-flip-detector.onnx -Force
 ```
 
 `nms=True` bakes NMS into the graph so the browser side stays simple
