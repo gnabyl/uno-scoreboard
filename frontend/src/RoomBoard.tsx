@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { recognizeCards } from './api/cardRecognition';
 import { preloadModel } from './api/localModel';
 import LogPanel from './LogPanel';
 import { computeScore, scoreForCard } from './unoScoring';
 import {
+  addPlayer,
   addRound,
   deletePlayer,
   deleteRound,
@@ -11,8 +12,9 @@ import {
 } from './api/rooms';
 import { describeRoomError } from './lib/roomCode';
 import { useTranslation } from './i18n';
-import { BTN_ACCENT, BTN_GHOST, BTN_PRIMARY, ErrorNotice } from './components/ui';
+import { BTN_ACCENT, BTN_GHOST, BTN_PRIMARY, ErrorNotice, INPUT } from './components/ui';
 import type { RoomSnapshot } from './api/rooms';
+import { Modal } from './components/modal';
 
 const IS_TOUCH = (() => {
   if (typeof window === 'undefined') return false;
@@ -190,6 +192,11 @@ export default function RoomBoard({
   const mobileInputRef = useRef<HTMLInputElement | null>(null);
   const pendingTargetRef = useRef<{ roundId: string; playerId: string } | null>(null);
 
+  // Add player modal
+  const [newPlayerName, setNewPlayerName] = useState<string>('');
+  const [addPlayerModalOpen, setAddPlayerModalOpen] = useState<boolean>(false);
+  const [addPlayerError, setAddPlayerError] = useState<string | null>(null);
+
   // Stop the camera if the component unmounts while it is running.
   useEffect(() => {
     return () => {
@@ -209,15 +216,22 @@ export default function RoomBoard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const runMutation = async (action: () => any) => {
+  const runMutation = async (
+    action: () => any,
+    onError?: (message: string) => void
+  ) => {
     setBusy(true);
     setError(null);
     try {
       await action();
       await onRefresh();
+      return true;
     } catch (err) {
-      setError(describeRoomError(err, t));
+      const message = describeRoomError(err, t);
+      if (onError) onError(message);
+      else setError(message);
       await onRefresh();
+      return false;
     } finally {
       setBusy(false);
     }
@@ -234,6 +248,34 @@ export default function RoomBoard({
     runMutation(() => deletePlayer(code, id, version));
   };
 
+  const openAddPlayer = () => {
+    setNewPlayerName('');
+    setAddPlayerError(null);
+    setAddPlayerModalOpen(true);
+  };
+
+  const closeAddPlayer = () => {
+    setAddPlayerModalOpen(false);
+    setNewPlayerName('');
+    setAddPlayerError(null);
+  };
+
+  const handleAddPlayer = async (name: string) => {
+    setAddPlayerError(null);
+    const ok = await runMutation(
+      () => addPlayer(code, name, version),
+      setAddPlayerError
+    );
+    if (ok) closeAddPlayer();
+  };
+
+  const handleAddPlayerSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    const name = newPlayerName.trim();
+    if (!name) return;
+    handleAddPlayer(name);
+  };
+
   const handleAddRound = () => {
     runMutation(() => addRound(code, version));
   };
@@ -244,13 +286,8 @@ export default function RoomBoard({
   };
 
   const handleSetScore = (roundId: string, playerId: string, value: string) => {
-    const previous = (() => {
-      const round = rounds.find((r) => r.id === roundId);
-      if (!round || !Object.prototype.hasOwnProperty.call(round.scores, playerId)) {
-        return undefined;
-      }
-      return round.scores[playerId];
-    })();
+    const round = rounds.find((r) => r.id === roundId);
+    const previous = round ? round.scores[playerId] : undefined;
 
     runMutation(() =>
       setScore(code, {
@@ -273,7 +310,9 @@ export default function RoomBoard({
         players.forEach((p) => {
           const raw = round.scores[p.id];
           const value = parseFloat(raw);
-          if (raw === null || raw === undefined || raw === '' || Number.isNaN(value) || value === 0) {
+          // A round winner is the player left blank. An explicit 0 is a score,
+          // not a winner marker.
+          if (raw === null || raw === undefined || raw === '' || Number.isNaN(value)) {
             if (winner === null) winner = p.id;
             else if (winner !== p.id) multiple = true;
           } else {
@@ -305,8 +344,10 @@ export default function RoomBoard({
 
   const hasData = rounds.some((round) =>
     players.some((p) => {
-      const value = round.scores[p.id];
-      return value !== null && value !== undefined && value !== '' && !Number.isNaN(parseFloat(value));
+      const value = parseFloat(round.scores[p.id]);
+      // Explicit 0 rows are used for late joiners, so they must not count as
+      // score data on their own.
+      return Number.isFinite(value) && value !== 0;
     })
   );
 
@@ -625,13 +666,20 @@ export default function RoomBoard({
               </ol>
             )}
 
-            <div className="mt-3 flex justify-center">
+            <div className="mt-3 flex justify-center gap-3">
               <button
                 className={BTN_ACCENT}
                 onClick={handleAddRound}
                 disabled={players.length === 0 || busy}
               >
                 {t('board.newRound')}
+              </button>
+              <button
+                className={BTN_ACCENT}
+                disabled={busy}
+                onClick={openAddPlayer}
+              >
+                {t('board.newPlayer')}
               </button>
             </div>
           </div>
@@ -654,6 +702,49 @@ export default function RoomBoard({
         className="hidden"
         onChange={handleNativeFile}
       />
+
+      <Modal
+        isVisible={addPlayerModalOpen}
+        onClose={closeAddPlayer}
+        labelledBy="new-player-title"
+      >
+        <h2 id="new-player-title" className="m-0 mb-4 text-lg font-bold text-white">
+          {t('board.addPlayerTitle')}
+        </h2>
+        <form onSubmit={handleAddPlayerSubmit}>
+          <label htmlFor="new-player-name" className="sr-only">
+            {t('board.newPlayerName')}
+          </label>
+          <input
+            id="new-player-name"
+            type="text"
+            value={newPlayerName}
+            maxLength={20}
+            autoComplete="off"
+            autoFocus
+            placeholder={t('board.newPlayerName')}
+            className={INPUT}
+            onChange={(event) => setNewPlayerName(event.target.value)}
+          />
+          {addPlayerError && (
+            <div className="mt-3">
+              <ErrorNotice>{addPlayerError}</ErrorNotice>
+            </div>
+          )}
+          <div className="mt-4 flex justify-end gap-3">
+            <button type="button" className={BTN_GHOST} onClick={closeAddPlayer}>
+              {t('common.cancel')}
+            </button>
+            <button
+              type="submit"
+              className={BTN_ACCENT}
+              disabled={newPlayerName.trim() === '' || busy}
+            >
+              {t('common.add')}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {scan && (
         <div

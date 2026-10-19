@@ -8,6 +8,7 @@ export const en = {
   'common.yourName': 'Your name',
   'common.backToStart': 'Back to start',
   'common.tryAgain': 'Try again',
+  'common.add': 'Add',
   'common.cancel': 'Cancel',
   'common.close': 'Close',
   'common.copied': 'Copied!',
@@ -49,6 +50,8 @@ export const en = {
   'room.copyLink': 'Copy link',
   'room.leave': 'Leave',
 
+  'board.addPlayerTitle': 'Add player',
+  'board.newPlayerName': 'New player name',
   'board.removePlayerConfirm':
     'Remove {name}? They will be kicked and their scores removed.',
   'board.removeRoundConfirm': 'Remove this round?',
@@ -71,6 +74,7 @@ export const en = {
   'board.detectorLoading': 'Detector still loading…',
   'board.scanAria': "Scan {name}'s cards for round {n}",
   'board.newRound': '+ New round',
+  'board.newPlayer': '+ New player',
   'board.scanDialog': 'Card scan',
   'board.aim': 'Aim at the cards, then capture.',
   'board.loadingDetector': 'Loading card detector…',
@@ -108,6 +112,7 @@ export const vi: Record<TranslationKey, string> = {
   'common.yourName': 'Tên bạn',
   'common.backToStart': 'Về trang chủ',
   'common.tryAgain': 'Thử lại',
+  'common.add': 'Thêm',
   'common.cancel': 'Hủy',
   'common.close': 'Đóng',
   'common.copied': 'Đã sao chép!',
@@ -149,6 +154,8 @@ export const vi: Record<TranslationKey, string> = {
   'room.copyLink': 'Sao chép liên kết',
   'room.leave': 'Rời phòng',
 
+  'board.addPlayerTitle': 'Thêm người chơi',
+  'board.newPlayerName': 'Tên người chơi mới',
   'board.removePlayerConfirm':
     'Xóa {name}? Người này sẽ bị mời ra và điểm của họ sẽ bị xóa.',
   'board.removeRoundConfirm': 'Xóa ván này?',
@@ -171,6 +178,7 @@ export const vi: Record<TranslationKey, string> = {
   'board.detectorLoading': 'Bộ nhận diện đang tải…',
   'board.scanAria': 'Quét bài của {name} cho ván {n}',
   'board.newRound': '+ Ván mới',
+  'board.newPlayer': '+ Người chơi mới',
   'board.scanDialog': 'Quét bài',
   'board.aim': 'Hướng vào các lá bài rồi chụp.',
   'board.loadingDetector': 'Đang tải bộ nhận diện bài…',
