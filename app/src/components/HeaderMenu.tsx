@@ -17,6 +17,7 @@ export function HeaderMenu({
   onCopyLink,
   onExportPng,
   exporting = false,
+  onLeave,
   className = '',
 }: {
   code?: string | null;
@@ -28,6 +29,8 @@ export function HeaderMenu({
   onExportPng?: () => void;
   /** True while the PNG is being generated. */
   exporting?: boolean;
+  /** Called by the Leave item; defaults to just navigating home. */
+  onLeave?: () => void;
   className?: string;
 }) {
   const { language, setLanguage, t } = useI18n();
@@ -91,7 +94,7 @@ export function HeaderMenu({
             label: t('room.leave'),
             icon: '🚪',
             danger: true,
-            onSelect: () => navigate('/'),
+            onSelect: onLeave ?? (() => navigate('/')),
           },
         ],
       });
@@ -107,6 +110,7 @@ export function HeaderMenu({
     onCopyCode,
     onCopyLink,
     onExportPng,
+    onLeave,
     setLanguage,
     t,
   ]);

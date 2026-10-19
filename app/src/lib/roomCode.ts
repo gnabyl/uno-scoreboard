@@ -31,6 +31,8 @@ export function describeRoomError(
       return t('error.notAMember');
     case 'invalid_code':
       return t('error.invalidCode');
+    case 'player_taken':
+      return t('error.playerTaken');
     case 'score_conflict':
       return t('error.scoreConflict');
     case 'version_conflict':

@@ -32,6 +32,10 @@ write tables directly.
 - Room codes are 8 characters from a 31-character alphabet. `join_room` and
   `create_room` each allow 10 calls per minute and 50 per hour per identity
   (`PT429`), so codes cannot be enumerated and rooms cannot be mass-created.
+- A player is claimed by the device that joins as them. `peek_room` lists only
+  unclaimed names, `join_room` rejects a name another device already owns
+  (`player_taken`), and `leave_room` releases the claim without touching that
+  player's scores.
 - Each room accepts up to 120 mutations per minute and 600 per hour. The count
   comes from `room_events`, so replaying a `request_id` is free and only
   committed writes consume the budget.

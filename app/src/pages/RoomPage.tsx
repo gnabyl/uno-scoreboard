@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   getRoom,
   joinRoom,
+  leaveRoom,
   normalizeRoomCode,
+  peekRoom,
   subscribeToRoom,
+  type RoomPlayer,
   type RoomSnapshot,
 } from '../api-helper/rooms';
 import RoomBoard from '../components/RoomBoard';
@@ -26,6 +29,7 @@ import {
 export default function RoomPage() {
   const { code: routeCode } = useParams();
   const { t, language } = useI18n();
+  const navigate = useNavigate();
 
   const code = useMemo(() => {
     try {
@@ -39,6 +43,8 @@ export default function RoomPage() {
   const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
+  const [roster, setRoster] = useState<RoomPlayer[]>([]);
+  const [pickedId, setPickedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [copied, setCopied] = useState<'code' | 'link' | null>(null);
@@ -50,15 +56,39 @@ export default function RoomPage() {
       return;
     }
 
+    const loadRoster = async () => {
+      const peeked = await peekRoom(code);
+      setRoster(peeked.players);
+      setPickedId((current) =>
+        current && peeked.players.some((player) => player.id === current) ? current : null,
+      );
+      setStatus('join');
+    };
+
     try {
       const room = await getRoom(code);
       versionRef.current = Number(room.version) || 0;
       setSnapshot(room);
+
+      if (!room.me) {
+        await loadRoster();
+        return;
+      }
+
       setError(null);
       setStatus('member');
     } catch (err) {
       if (err?.code === 'not_a_member') {
-        setStatus('join');
+        try {
+          await loadRoster();
+        } catch (peekErr) {
+          if (peekErr?.code === 'not_found') {
+            setStatus('missing');
+          } else {
+            setError(describeRoomError(peekErr, t));
+            setStatus('error');
+          }
+        }
       } else if (err?.code === 'not_found') {
         setStatus('missing');
       } else {
@@ -82,7 +112,29 @@ export default function RoomPage() {
     });
   }, [code, status, refresh]);
 
-  const handleJoin = async (event: React.FormEvent) => {
+  const joinAs = async (params: { name?: string; playerId?: string }) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await joinRoom(code, params);
+      await refresh();
+    } catch (err) {
+      setError(describeRoomError(err, t));
+      // A name can be claimed between peeking and joining; re-peek so it
+      // disappears from the list.
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleJoinPicked = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!pickedId) return;
+    await joinAs({ playerId: pickedId });
+  };
+
+  const handleJoinNewName = async (event: React.FormEvent) => {
     event.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) {
@@ -90,15 +142,16 @@ export default function RoomPage() {
       return;
     }
 
-    setBusy(true);
-    setError(null);
+    await joinAs({ name: trimmed });
+  };
+
+  const handleLeave = async () => {
     try {
-      await joinRoom(code, { name: trimmed });
-      await refresh();
-    } catch (err) {
-      setError(describeRoomError(err, t));
+      if (code) await leaveRoom(code);
+    } catch {
+      // Still leave locally if the release request fails.
     } finally {
-      setBusy(false);
+      navigate('/');
     }
   };
 
@@ -207,12 +260,77 @@ export default function RoomPage() {
     );
   } else if (status === 'join' || (status === 'member' && !snapshot?.me)) {
     content = (
-      <section className={`${CARD} mx-auto w-full max-w-[440px]`}>
+      <section className={`${CARD} mx-auto flex w-full max-w-[440px] flex-col`}>
         <h2 className="m-0 text-xl font-bold text-white">
           {t('room.join.title', { code: code ?? '' })}
         </h2>
         <p className="mt-2 text-sm text-muted">{t('room.join.description')}</p>
-        <form className="mt-4 flex flex-col gap-3" onSubmit={handleJoin}>
+
+        {roster.length > 0 ? (
+          <form className="mt-4 flex flex-col gap-3" onSubmit={handleJoinPicked}>
+            <p className="m-0 text-xs font-bold uppercase tracking-[0.08em] text-faint">
+              {t('room.join.choose')}
+            </p>
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
+              {roster.map((player) => {
+                const selected = pickedId === player.id;
+                return (
+                  <li key={player.id}>
+                    <button
+                      type="button"
+                      className={`w-full rounded-xl border px-3.5 py-3 text-left text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                        selected
+                          ? 'border-accent bg-accent/15 text-white'
+                          : 'border-edge bg-deep text-fg hover:border-accent/70'
+                      }`}
+                      aria-pressed={selected}
+                      disabled={busy}
+                      onClick={() => {
+                        setPickedId(player.id);
+                        setError(null);
+                      }}
+                    >
+                      {player.name}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            <button className={BTN_ACCENT} type="submit" disabled={!pickedId || busy}>
+              {busy ? t('room.join.joining') : t('room.join.submit')}
+            </button>
+            <button
+              type="button"
+              className="self-start border-none bg-transparent p-0 text-xs font-semibold text-muted underline-offset-2 hover:text-white hover:underline"
+              disabled={busy}
+              onClick={refresh}
+            >
+              {t('room.join.refresh')}
+            </button>
+          </form>
+        ) : (
+          <div className="mt-4">
+            <p className="m-0 text-sm text-faint">{t('room.join.noOpenNames')}</p>
+            <button
+              type="button"
+              className="mt-2 border-none bg-transparent p-0 text-xs font-semibold text-muted underline-offset-2 hover:text-white hover:underline"
+              disabled={busy}
+              onClick={refresh}
+            >
+              {t('room.join.refresh')}
+            </button>
+          </div>
+        )}
+
+        <div className="my-4 flex items-center gap-3">
+          <span className="h-px flex-1 bg-edge" aria-hidden="true" />
+          <h3 className="m-0 text-[11px] font-bold uppercase tracking-[0.08em] text-faint">
+            {t('room.join.newNameHeading')}
+          </h3>
+          <span className="h-px flex-1 bg-edge" aria-hidden="true" />
+        </div>
+
+        <form className="flex flex-col gap-3" onSubmit={handleJoinNewName}>
           <label className="sr-only" htmlFor="room-name">
             {t('common.yourName')}
           </label>
@@ -223,13 +341,17 @@ export default function RoomPage() {
             value={name}
             maxLength={20}
             autoComplete="off"
-            autoFocus
-            onChange={(event) => setName(event.target.value)}
+            autoFocus={roster.length === 0}
+            onChange={(event) => {
+              setName(event.target.value);
+              setError(null);
+            }}
           />
-          <button className={BTN_ACCENT} type="submit" disabled={busy}>
-            {busy ? t('room.join.joining') : t('room.join.submit')}
+          <button className={BTN_GHOST} type="submit" disabled={busy || !name.trim()}>
+            {busy ? t('room.join.joining') : t('room.join.newNameSubmit')}
           </button>
         </form>
+
         <div className="mt-3">
           <ErrorNotice>{error}</ErrorNotice>
         </div>
@@ -271,6 +393,7 @@ export default function RoomPage() {
           onCopyLink={copyLink}
           onExportPng={snapshot && snapshot.players.length > 0 ? handleExportPng : undefined}
           exporting={exporting}
+          onLeave={handleLeave}
         />
       </header>
 

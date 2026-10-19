@@ -2,13 +2,15 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { vi } from 'vitest';
 import { I18nProvider } from '../i18n';
-import { getRoom } from '../api-helper/rooms';
+import { getRoom, joinRoom, leaveRoom, peekRoom } from '../api-helper/rooms';
 import { exportScoreboardPng } from '../lib/scoreboardPng';
 import RoomPage from './RoomPage';
 
 vi.mock('../api-helper/rooms', () => ({
   getRoom: vi.fn(),
   joinRoom: vi.fn(),
+  leaveRoom: vi.fn(),
+  peekRoom: vi.fn(),
   subscribeToRoom: vi.fn(() => () => {}),
   normalizeRoomCode: (value: string) =>
     String(value ?? '')
@@ -88,4 +90,83 @@ test('shows an error when the image cannot be generated', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'Could not create the image. Try again.',
   );
+});
+
+test('picks a listed player and joins as them', async () => {
+  let joined = false;
+  vi.mocked(getRoom).mockImplementation(async () => {
+    if (!joined) throw Object.assign(new Error('not a member'), { code: 'not_a_member' });
+    return snapshot;
+  });
+  vi.mocked(peekRoom).mockResolvedValue({
+    code: 'ABCDEFGH',
+    version: 1,
+    players: [{ id: 'p2', name: 'Bob', seat: 2 }],
+  });
+  vi.mocked(joinRoom).mockImplementation(async () => {
+    joined = true;
+    return { playerId: 'p2' };
+  });
+
+  renderRoom();
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Bob' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Join room' }));
+
+  await waitFor(() => expect(joinRoom).toHaveBeenCalledWith('ABCDEFGH', { playerId: 'p2' }));
+  expect(await screen.findByText('Board')).toBeInTheDocument();
+});
+
+test('reports a name that was claimed before the join completed', async () => {
+  vi.mocked(getRoom).mockRejectedValue(
+    Object.assign(new Error('not a member'), { code: 'not_a_member' }),
+  );
+  vi.mocked(peekRoom).mockResolvedValue({
+    code: 'ABCDEFGH',
+    version: 1,
+    players: [{ id: 'p2', name: 'Bob', seat: 2 }],
+  });
+  vi.mocked(joinRoom).mockRejectedValue(
+    Object.assign(new Error('taken'), { code: 'player_taken' }),
+  );
+
+  renderRoom();
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Bob' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Join room' }));
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'That name was just taken. Pick another.',
+  );
+  await waitFor(() => expect(peekRoom).toHaveBeenCalledTimes(2));
+});
+
+test('joins with a new name when no listed names are open', async () => {
+  let joined = false;
+  vi.mocked(getRoom).mockImplementation(async () => {
+    if (!joined) throw Object.assign(new Error('not a member'), { code: 'not_a_member' });
+    return snapshot;
+  });
+  vi.mocked(peekRoom).mockResolvedValue({ code: 'ABCDEFGH', version: 1, players: [] });
+  vi.mocked(joinRoom).mockImplementation(async () => {
+    joined = true;
+    return { playerId: 'p3' };
+  });
+
+  renderRoom();
+
+  fireEvent.change(await screen.findByLabelText('Your name'), { target: { value: 'Cara' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Join with this name' }));
+
+  await waitFor(() => expect(joinRoom).toHaveBeenCalledWith('ABCDEFGH', { name: 'Cara' }));
+});
+
+test('releases the player when leaving', async () => {
+  renderRoom();
+
+  await screen.findByText('Board');
+  fireEvent.click(screen.getByRole('button', { name: 'Open menu' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Leave' }));
+
+  await waitFor(() => expect(leaveRoom).toHaveBeenCalledWith('ABCDEFGH'));
 });

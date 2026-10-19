@@ -23,6 +23,13 @@ export interface RoomSnapshot {
   [key: string]: any;
 }
 
+/** Pre-join view returned by the peek_room RPC: only unclaimed players. */
+export interface PeekedRoom {
+  code: string;
+  version: number | string;
+  players: RoomPlayer[];
+}
+
 export class RoomApiError extends Error {
   code: string | null;
   details: any;
@@ -156,7 +163,20 @@ export async function joinRoom(
   if (joined?.error === 'player_not_found') {
     throw new RoomApiError('That player no longer exists.', { code: 'not_found' });
   }
+  if (joined?.error === 'player_taken') {
+    throw new RoomApiError('That player is already taken.', { code: 'player_taken' });
+  }
   return joined;
+}
+
+/** Lists the unclaimed players in a room before joining. */
+export async function peekRoom(code: string): Promise<PeekedRoom> {
+  return call('peek_room', { p_code: normalizeRoomCode(code) });
+}
+
+/** Releases this device's claim on its player; scores are untouched. */
+export async function leaveRoom(code: string): Promise<void> {
+  await call('leave_room', { p_code: normalizeRoomCode(code) });
 }
 
 export async function getRoom(code: string): Promise<RoomSnapshot> {
