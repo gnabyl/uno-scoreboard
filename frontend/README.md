@@ -49,10 +49,9 @@ write tables directly.
 ### Conflict policy
 
 `setScore` retries once automatically when the conflicting change touched a
-*different* cell; if the same cell changed it throws `ScoreConflictError` with
+_different_ cell; if the same cell changed it throws `ScoreConflictError` with
 the fresh snapshot. Destructive operations surface `VersionConflictError` so the
 UI can ask for confirmation.
-
 
 ## Local development
 

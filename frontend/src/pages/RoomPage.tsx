@@ -110,7 +110,7 @@ export default function RoomPage() {
       setError(
         t('error.copyFailed', {
           what: t(kind === 'code' ? 'common.code' : 'common.link'),
-        })
+        }),
       );
     }
   };
@@ -125,8 +125,8 @@ export default function RoomPage() {
       <section className={`${CARD} mx-auto w-full max-w-[440px] text-center`}>
         <h2 className="m-0 text-xl font-bold text-white">{t('room.invalid.title')}</h2>
         <p className="mt-2 text-sm text-muted">
-          {t('room.invalid.bodyBefore')}{' '}
-          <span className="font-mono">/r/ABCDEFGH</span> {t('room.invalid.bodyAfter')}
+          {t('room.invalid.bodyBefore')} <span className="font-mono">/r/ABCDEFGH</span>{' '}
+          {t('room.invalid.bodyAfter')}
         </p>
         <Link className={`${BTN_PRIMARY} mt-5 inline-block no-underline`} to="/">
           {t('common.backToStart')}
@@ -147,8 +147,7 @@ export default function RoomPage() {
       <section className={`${CARD} mx-auto w-full max-w-[440px] text-center`}>
         <h2 className="m-0 text-xl font-bold text-white">{t('room.missing.title')}</h2>
         <p className="mt-2 text-sm text-muted">
-          {t('room.missing.bodyBefore')}{' '}
-          <span className="font-mono text-fg">{code}</span>
+          {t('room.missing.bodyBefore')} <span className="font-mono text-fg">{code}</span>
           {t('room.missing.bodyAfter')}
         </p>
         <Link className={`${BTN_PRIMARY} mt-5 inline-block no-underline`} to="/">

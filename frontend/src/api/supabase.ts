@@ -22,9 +22,7 @@ export function ensureSession(): Promise<any> {
   if (!supabase) {
     return Promise.reject(
       // Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local or the Vercel dashboard.
-      new Error(
-        'backend is not configured'
-      )
+      new Error('backend is not configured'),
     );
   }
 
@@ -34,15 +32,14 @@ export function ensureSession(): Promise<any> {
       if (error) throw error;
       if (data.session) return data.session;
 
-      const { data: signedIn, error: signInError } =
-        await supabase.auth.signInAnonymously();
+      const { data: signedIn, error: signInError } = await supabase.auth.signInAnonymously();
       if (signInError) {
         if (
           signInError.code === 'anonymous_provider_disabled' ||
           /anonymous sign-ins are disabled/i.test(signInError.message || '')
         ) {
           throw new Error(
-            'Anonymous sign-ins are disabled. Enable them in Supabase → Authentication → Providers → Anonymous.'
+            'Anonymous sign-ins are disabled. Enable them in Supabase → Authentication → Providers → Anonymous.',
           );
         }
         throw signInError;

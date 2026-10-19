@@ -38,7 +38,7 @@ const CLASS_NAMES = [
 ];
 
 const MIN_CONFIDENCE = parseFloat(
-  import.meta.env.VITE_MIN_CONFIDENCE || String(DEFAULT_CONFIDENCE)
+  import.meta.env.VITE_MIN_CONFIDENCE || String(DEFAULT_CONFIDENCE),
 );
 
 /** One detected card, with its box mapped back to original image coordinates. */
@@ -123,16 +123,12 @@ function getSession() {
   if (!sessionPromise) {
     sessionPromise = (async () => {
       // TEMP (for testing): force a load failure by visiting ?simulateError=1
-      if (
-        typeof window !== 'undefined' &&
-        window.location.search.includes('simulateError')
-      ) {
+      if (typeof window !== 'undefined' && window.location.search.includes('simulateError')) {
         throw new Error('Simulated model load failure');
       }
       // The ~20 MB of WASM runtime files are fetched from the pinned CDN so
       // they don't need to be committed to the repo.
-      ort.env.wasm.wasmPaths =
-        'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/';
+      ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/';
       const buffer = await fetchModelBuffer();
       progress('session', 'loading ONNX session…', {
         providers: ['webgl', 'wasm'],
@@ -240,12 +236,7 @@ export async function detectCards(file: Blob): Promise<DetectionResult> {
       detections.push({
         cls,
         conf,
-        box: [
-          (x1 - padX) / scale,
-          (y1 - padY) / scale,
-          (x2 - padX) / scale,
-          (y2 - padY) / scale,
-        ],
+        box: [(x1 - padX) / scale, (y1 - padY) / scale, (x2 - padX) / scale, (y2 - padY) / scale],
       });
     }
 

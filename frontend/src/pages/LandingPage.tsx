@@ -4,14 +4,7 @@ import { createRoom, normalizeRoomCode } from '../api/rooms';
 import { describeRoomError, parseRoomCode } from '../lib/roomCode';
 import { useTranslation } from '../i18n';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
-import {
-  BTN_ACCENT,
-  BTN_PRIMARY,
-  CARD,
-  ErrorNotice,
-  INPUT,
-  Logo,
-} from '../components/ui';
+import { BTN_ACCENT, BTN_PRIMARY, CARD, ErrorNotice, INPUT, Logo } from '../components/ui';
 
 export default function LandingPage() {
   const navigate = useNavigate();

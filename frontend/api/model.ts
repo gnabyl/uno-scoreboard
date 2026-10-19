@@ -5,9 +5,7 @@ const MODEL_PATH = 'uno-flip-detector.onnx';
 export default async function handler(req: any, res: any) {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   if (!token) {
-    return res
-      .status(500)
-      .json({ error: 'BLOB_READ_WRITE_TOKEN env var missing' });
+    return res.status(500).json({ error: 'BLOB_READ_WRITE_TOKEN env var missing' });
   }
 
   try {

@@ -24,13 +24,10 @@ export function LanguageSwitcher({ className = '' }: { className?: string }) {
   const currentIndex = LANGUAGES.findIndex((option) => option.code === language);
   const current = LANGUAGES[currentIndex] ?? LANGUAGES[0];
 
-  const openList = useCallback(
-    (index: number) => {
-      setActiveIndex(index);
-      setOpen(true);
-    },
-    []
-  );
+  const openList = useCallback((index: number) => {
+    setActiveIndex(index);
+    setOpen(true);
+  }, []);
 
   const select = useCallback(
     (code: Language) => {
@@ -38,7 +35,7 @@ export function LanguageSwitcher({ className = '' }: { className?: string }) {
       setOpen(false);
       buttonRef.current?.focus();
     },
-    [setLanguage]
+    [setLanguage],
   );
 
   // Move focus into the list so keyboard navigation works, and close on any

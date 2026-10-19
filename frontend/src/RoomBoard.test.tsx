@@ -72,12 +72,8 @@ test('adds a player from the modal', async () => {
   });
   fireEvent.click(screen.getByRole('button', { name: /^add$/i }));
 
-  await waitFor(() =>
-    expect(addPlayer).toHaveBeenCalledWith('ABCDEFGH', 'Carol', 3)
-  );
-  await waitFor(() =>
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  );
+  await waitFor(() => expect(addPlayer).toHaveBeenCalledWith('ABCDEFGH', 'Carol', 3));
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 });
 
 test('clears the name when the add-player modal is reopened', () => {
@@ -137,9 +133,7 @@ test('treats a persisted 0 for a late player as a score, not a win', () => {
     rounds: [{ id: 'r1', seq: 1, scores: { p1: 10, p2: null, p3: 0 } }],
   };
 
-  render(
-    <RoomBoard code="ABCDEFGH" snapshot={snapshotWithZeroRow} onRefresh={() => {}} />
-  );
+  render(<RoomBoard code="ABCDEFGH" snapshot={snapshotWithZeroRow} onRefresh={() => {}} />);
 
   expect(screen.getByText('Bob won')).toBeInTheDocument();
   expect(screen.getByLabelText('Carol round 1 score')).toHaveValue(0);

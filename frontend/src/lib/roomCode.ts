@@ -20,7 +20,7 @@ import type { TranslateFn } from '../i18n';
 
 export function describeRoomError(
   err: { code?: string | null; message?: string } | null | undefined,
-  t: TranslateFn
+  t: TranslateFn,
 ): string {
   switch (err?.code) {
     case 'rate_limited':

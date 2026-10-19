@@ -15,9 +15,7 @@ export default function LogPanel() {
 
   const latest = entries[entries.length - 1];
   const status = latest
-    ? `${latest.message}${
-        latest.data !== undefined ? ' ' + JSON.stringify(latest.data) : ''
-      }`
+    ? `${latest.message}${latest.data !== undefined ? ' ' + JSON.stringify(latest.data) : ''}`
     : t('log.idle');
 
   return (

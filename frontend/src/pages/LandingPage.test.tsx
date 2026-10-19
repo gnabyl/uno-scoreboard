@@ -6,12 +6,10 @@ test('offers host and join entry points', () => {
   render(
     <MemoryRouter>
       <LandingPage />
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 
   expect(screen.getByRole('heading', { name: /host a game/i })).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: /join a game/i })).toBeInTheDocument();
-  expect(
-    screen.getByPlaceholderText(/ABCDEFGH or room link/i)
-  ).toBeInTheDocument();
+  expect(screen.getByPlaceholderText(/ABCDEFGH or room link/i)).toBeInTheDocument();
 });

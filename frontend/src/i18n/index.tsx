@@ -32,7 +32,10 @@ function isLanguage(value: unknown): value is Language {
 
 /** BCP-47 style tag -> supported language, e.g. `vi-VN` -> `vi`. */
 function matchLanguage(tag: unknown): Language | null {
-  const base = String(tag ?? '').trim().toLowerCase().split('-')[0];
+  const base = String(tag ?? '')
+    .trim()
+    .toLowerCase()
+    .split('-')[0];
   return isLanguage(base) ? base : null;
 }
 
@@ -63,7 +66,7 @@ export function detectLanguage(): Language {
 export function format(template: string, params?: TranslateParams): string {
   if (!params) return template;
   return template.replace(/\{(\w+)\}/g, (match, name) =>
-    params[name] === undefined ? match : String(params[name])
+    params[name] === undefined ? match : String(params[name]),
   );
 }
 
@@ -71,7 +74,7 @@ export function format(template: string, params?: TranslateParams): string {
 export function translate(
   language: Language,
   key: TranslationKey,
-  params?: TranslateParams
+  params?: TranslateParams,
 ): string {
   const template = dictionaries[language]?.[key] ?? en[key] ?? key;
   return format(template, params);
@@ -112,7 +115,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       setLanguage,
       t: (key, params) => translate(language, key, params),
     }),
-    [language, setLanguage]
+    [language, setLanguage],
   );
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;

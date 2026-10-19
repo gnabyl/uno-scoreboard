@@ -17,16 +17,13 @@ export const en = {
   'common.language': 'Language',
 
   'landing.heading': 'Start a game or join one',
-  'landing.subheading':
-    'One shared board for the whole table. No accounts',
+  'landing.subheading': 'One shared board for the whole table. No accounts',
   'landing.host.heading': 'Host a game',
-  'landing.host.description':
-    "Create a room and share the link. You'll get an 8-character code.",
+  'landing.host.description': "Create a room and share the link. You'll get an 8-character code.",
   'landing.host.submit': 'Create room',
   'landing.host.creating': 'Creating room…',
   'landing.join.heading': 'Join a game',
-  'landing.join.description':
-    'Open the link someone shared with you, or type the room code.',
+  'landing.join.description': 'Open the link someone shared with you, or type the room code.',
   'landing.join.label': 'Room code or link',
   'landing.join.placeholder': 'ABCDEFGH or room link',
   'landing.join.submit': 'Join room',
@@ -42,8 +39,7 @@ export const en = {
   'room.missing.bodyAfter': '. Check the link, or host a new game.',
   'room.error.title': "Couldn't open the room",
   'room.join.title': 'Join room {code}',
-  'room.join.description':
-    'Enter your name. Everyone in the room can edit every score.',
+  'room.join.description': 'Enter your name. Everyone in the room can edit every score.',
   'room.join.submit': 'Join room',
   'room.join.joining': 'Joining…',
   'room.copyCode': 'Copy code',
@@ -52,8 +48,7 @@ export const en = {
 
   'board.addPlayerTitle': 'Add player',
   'board.newPlayerName': 'New player name',
-  'board.removePlayerConfirm':
-    'Remove {name}? They will be kicked and their scores removed.',
+  'board.removePlayerConfirm': 'Remove {name}? They will be kicked and their scores removed.',
   'board.removeRoundConfirm': 'Remove this round?',
   'board.cameraError':
     'Could not access the camera. Please allow camera access, or use “Upload image”.',
@@ -121,16 +116,13 @@ export const vi: Record<TranslationKey, string> = {
   'common.language': 'Ngôn ngữ',
 
   'landing.heading': 'Tạo phòng hoặc tham gia cùng bạn bè',
-  'landing.subheading':
-    'Một bảng điểm chung cho tất cả. Không cần tài khoản',
+  'landing.subheading': 'Một bảng điểm chung cho tất cả. Không cần tài khoản',
   'landing.host.heading': 'Tạo phòng',
-  'landing.host.description':
-    'Tạo phòng rồi chia sẻ liên kết. Bạn sẽ nhận được mã gồm 8 ký tự.',
+  'landing.host.description': 'Tạo phòng rồi chia sẻ liên kết. Bạn sẽ nhận được mã gồm 8 ký tự.',
   'landing.host.submit': 'Tạo phòng',
   'landing.host.creating': 'Đang tạo phòng…',
   'landing.join.heading': 'Tham gia phòng',
-  'landing.join.description':
-    'Mở liên kết ai đó chia sẻ với bạn, hoặc nhập mã phòng.',
+  'landing.join.description': 'Mở liên kết ai đó chia sẻ với bạn, hoặc nhập mã phòng.',
   'landing.join.label': 'Mã phòng hoặc liên kết',
   'landing.join.placeholder': 'ABCDEFGH hoặc liên kết phòng',
   'landing.join.submit': 'Vào phòng',
@@ -146,8 +138,7 @@ export const vi: Record<TranslationKey, string> = {
   'room.missing.bodyAfter': '. Hãy kiểm tra lại liên kết hoặc tạo ván mới.',
   'room.error.title': 'Không thể mở phòng',
   'room.join.title': 'Tham gia phòng {code}',
-  'room.join.description':
-    'Nhập tên của bạn',
+  'room.join.description': 'Nhập tên của bạn',
   'room.join.submit': 'Vào phòng',
   'room.join.joining': 'Đang tham gia…',
   'room.copyCode': 'Sao chép mã',
@@ -156,8 +147,7 @@ export const vi: Record<TranslationKey, string> = {
 
   'board.addPlayerTitle': 'Thêm người chơi',
   'board.newPlayerName': 'Tên người chơi mới',
-  'board.removePlayerConfirm':
-    'Xóa {name}? Người này sẽ bị mời ra và điểm của họ sẽ bị xóa.',
+  'board.removePlayerConfirm': 'Xóa {name}? Người này sẽ bị mời ra và điểm của họ sẽ bị xóa.',
   'board.removeRoundConfirm': 'Xóa ván này?',
   'board.cameraError':
     'Không thể truy cập camera. Vui lòng cho phép truy cập camera, hoặc dùng “Tải ảnh lên”.',

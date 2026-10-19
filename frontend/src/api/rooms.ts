@@ -34,7 +34,7 @@ export class RoomApiError extends Error {
       code = null,
       details = null,
       status = null,
-    }: { code?: string | null; details?: any; status?: number | null } = {}
+    }: { code?: string | null; details?: any; status?: number | null } = {},
   ) {
     super(message);
     this.name = 'RoomApiError';
@@ -126,7 +126,9 @@ export async function createRoom(name: string): Promise<any> {
 const ROOM_CODE_ALPHABET = /^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{8}$/;
 
 export function normalizeRoomCode(value: unknown): string {
-  const code = String(value ?? '').trim().toUpperCase();
+  const code = String(value ?? '')
+    .trim()
+    .toUpperCase();
   if (!ROOM_CODE_ALPHABET.test(code)) {
     throw new RoomApiError('Room codes are 8 characters.', { code: 'invalid_code' });
   }
@@ -139,7 +141,7 @@ export function normalizeRoomCode(value: unknown): string {
  */
 export async function joinRoom(
   code: string,
-  { name = null, playerId = null }: { name?: string | null; playerId?: string | null } = {}
+  { name = null, playerId = null }: { name?: string | null; playerId?: string | null } = {},
 ): Promise<any> {
   const joined = await call('join_room', {
     p_code: normalizeRoomCode(code),
@@ -164,7 +166,7 @@ export async function getRoom(code: string): Promise<RoomSnapshot> {
 export async function addPlayer(
   code: string,
   name: string,
-  baseVersion: number
+  baseVersion: number,
 ): Promise<{ version: number; playerId: string }> {
   const data = await call('cmd_add_player', {
     p_code: normalizeRoomCode(code),
@@ -179,7 +181,7 @@ export async function addPlayer(
 export async function deletePlayer(
   code: string,
   playerId: string,
-  baseVersion: number
+  baseVersion: number,
 ): Promise<number> {
   const data = await call('cmd_delete_player', {
     p_code: normalizeRoomCode(code),
@@ -193,7 +195,7 @@ export async function deletePlayer(
 export async function kickPlayer(
   code: string,
   playerId: string,
-  baseVersion: number
+  baseVersion: number,
 ): Promise<number> {
   const data = await call('cmd_kick_player', {
     p_code: normalizeRoomCode(code),
@@ -207,7 +209,7 @@ export async function kickPlayer(
 export async function addRound(
   code: string,
   baseVersion: number,
-  roundId: string = requestId()
+  roundId: string = requestId(),
 ): Promise<{ version: number; roundId: string }> {
   const data = await call('cmd_add_round', {
     p_code: normalizeRoomCode(code),
@@ -221,7 +223,7 @@ export async function addRound(
 export async function deleteRound(
   code: string,
   roundId: string,
-  baseVersion: number
+  baseVersion: number,
 ): Promise<number> {
   const data = await call('cmd_delete_round', {
     p_code: normalizeRoomCode(code),
@@ -250,7 +252,7 @@ const numericValue = (value: unknown): number | null => {
 function readCell(
   snapshot: RoomSnapshot,
   roundId: string,
-  playerId: string
+  playerId: string,
 ): number | null | undefined {
   const round = snapshot?.rounds?.find((r) => r.id === roundId);
   if (!round || !Object.prototype.hasOwnProperty.call(round.scores, playerId)) {
@@ -279,7 +281,7 @@ export async function setScore(
     value: string | number | null;
     baseVersion: number;
     previousValue?: number | string | null;
-  }
+  },
 ): Promise<number> {
   const id = requestId();
   const room = normalizeRoomCode(code);
@@ -321,7 +323,7 @@ export function subscribeToRoom(
   }: {
     onVersion?: (version: number | null) => void;
     onStatus?: (status: string) => void;
-  } = {}
+  } = {},
 ): () => void {
   if (!supabase) return () => {};
 
@@ -338,7 +340,7 @@ export function subscribeToRoom(
       (payload: any) => {
         const version = payload?.new?.version;
         if (version !== undefined && version !== null) onVersion?.(Number(version));
-      }
+      },
     )
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') onVersion?.(null);

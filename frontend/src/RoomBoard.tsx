@@ -3,13 +3,7 @@ import { recognizeCards } from './api/cardRecognition';
 import { preloadModel } from './api/localModel';
 import LogPanel from './LogPanel';
 import { computeScore, scoreForCard } from './unoScoring';
-import {
-  addPlayer,
-  addRound,
-  deletePlayer,
-  deleteRound,
-  setScore,
-} from './api/rooms';
+import { addPlayer, addRound, deletePlayer, deleteRound, setScore } from './api/rooms';
 import { describeRoomError } from './lib/roomCode';
 import { useTranslation } from './i18n';
 import { BTN_ACCENT, BTN_GHOST, BTN_PRIMARY, ErrorNotice, INPUT } from './components/ui';
@@ -22,12 +16,7 @@ const IS_TOUCH = (() => {
   return 'ontouchstart' in window;
 })();
 
-const PLAYER_COLORS = [
-  'bg-brand-red',
-  'bg-brand-orange',
-  'bg-brand-teal',
-  'bg-brand-blue',
-];
+const PLAYER_COLORS = ['bg-brand-red', 'bg-brand-orange', 'bg-brand-teal', 'bg-brand-blue'];
 
 const SCORE_FIELD =
   'w-[60px] rounded-[10px] border border-edge bg-deep p-2 text-center text-base font-semibold outline-none sm:w-20 sm:p-2.5';
@@ -40,7 +29,7 @@ async function annotatePreview(
   file: Blob,
   width: number,
   height: number,
-  label: string
+  label: string,
 ): Promise<string> {
   const bitmap = await createImageBitmap(file);
   try {
@@ -83,7 +72,7 @@ function ScoreCell({ value, label, onCommit, busy }: ScoreCellProps) {
 
   const commit = () => {
     focusedRef.current = false;
-    if (draft.trim() === "") {
+    if (draft.trim() === '') {
       if (draft !== cellString(value)) onCommit(draft);
       return;
     }
@@ -212,14 +201,11 @@ export default function RoomBoard({
     preloadStartedRef.current = true;
     preloadModel()
       .then(() => setModelReady(true))
-      .catch(() => { });
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const runMutation = async (
-    action: () => any,
-    onError?: (message: string) => void
-  ) => {
+  const runMutation = async (action: () => any, onError?: (message: string) => void) => {
     setBusy(true);
     setError(null);
     try {
@@ -239,10 +225,7 @@ export default function RoomBoard({
 
   const handleRemovePlayer = (id: string) => {
     const target = players.find((p) => p.id === id);
-    if (
-      target &&
-      !window.confirm(t('board.removePlayerConfirm', { name: target.name }))
-    ) {
+    if (target && !window.confirm(t('board.removePlayerConfirm', { name: target.name }))) {
       return;
     }
     runMutation(() => deletePlayer(code, id, version));
@@ -262,10 +245,7 @@ export default function RoomBoard({
 
   const handleAddPlayer = async (name: string) => {
     setAddPlayerError(null);
-    const ok = await runMutation(
-      () => addPlayer(code, name, version),
-      setAddPlayerError
-    );
+    const ok = await runMutation(() => addPlayer(code, name, version), setAddPlayerError);
     if (ok) closeAddPlayer();
   };
 
@@ -296,35 +276,32 @@ export default function RoomBoard({
         value,
         baseVersion: version,
         previousValue: previous,
-      })
+      }),
     );
   };
 
-  const roundSummaries = useMemo<Record<string, { sum: number; winner: string | null }>>(
-    () => {
-      const map: Record<string, { sum: number; winner: string | null }> = {};
-      rounds.forEach((round) => {
-        let sum = 0;
-        let winner: string | null = null;
-        let multiple = false;
-        players.forEach((p) => {
-          const raw = round.scores[p.id];
-          const value = parseFloat(raw);
-          // A round winner is the player left blank. An explicit 0 is a score,
-          // not a winner marker.
-          if (raw === null || raw === undefined || raw === '' || Number.isNaN(value)) {
-            if (winner === null) winner = p.id;
-            else if (winner !== p.id) multiple = true;
-          } else {
-            sum += value;
-          }
-        });
-        map[round.id] = { sum, winner: multiple ? null : winner };
+  const roundSummaries = useMemo<Record<string, { sum: number; winner: string | null }>>(() => {
+    const map: Record<string, { sum: number; winner: string | null }> = {};
+    rounds.forEach((round) => {
+      let sum = 0;
+      let winner: string | null = null;
+      let multiple = false;
+      players.forEach((p) => {
+        const raw = round.scores[p.id];
+        const value = parseFloat(raw);
+        // A round winner is the player left blank. An explicit 0 is a score,
+        // not a winner marker.
+        if (raw === null || raw === undefined || raw === '' || Number.isNaN(value)) {
+          if (winner === null) winner = p.id;
+          else if (winner !== p.id) multiple = true;
+        } else {
+          sum += value;
+        }
       });
-      return map;
-    },
-    [rounds, players]
-  );
+      map[round.id] = { sum, winner: multiple ? null : winner };
+    });
+    return map;
+  }, [rounds, players]);
 
   const totals = useMemo<Record<string, number>>(() => {
     const result: Record<string, number> = {};
@@ -348,7 +325,7 @@ export default function RoomBoard({
       // Explicit 0 rows are used for late joiners, so they must not count as
       // score data on their own.
       return Number.isFinite(value) && value !== 0;
-    })
+    }),
   );
 
   const maxTotal = hasData ? Math.max(...players.map((p) => totals[p.id])) : null;
@@ -360,7 +337,7 @@ export default function RoomBoard({
     videoRef.current = node;
     if (node && streamRef.current) {
       node.srcObject = streamRef.current;
-      node.play().catch(() => { });
+      node.play().catch(() => {});
     }
   };
 
@@ -376,7 +353,7 @@ export default function RoomBoard({
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play().catch(() => { });
+        videoRef.current.play().catch(() => {});
       }
     } catch {
       setCameraError(t('board.cameraError'));
@@ -407,7 +384,7 @@ export default function RoomBoard({
         recognizeFileFor(file, scan.roundId, scan.playerId);
       },
       'image/jpeg',
-      0.9
+      0.9,
     );
   };
 
@@ -423,24 +400,24 @@ export default function RoomBoard({
         file,
         result.width,
         result.height,
-        t(count === 1 ? 'board.cardCountSingular' : 'board.cardCountPlural', { count })
+        t(count === 1 ? 'board.cardCountSingular' : 'board.cardCountPlural', { count }),
       );
       setScan((prev) =>
         prev
           ? {
-            ...prev,
-            status: 'done',
-            cards: result.cards,
-            annotatedPreview,
-            score: -computeScore(result.cards),
-          }
-          : prev
+              ...prev,
+              status: 'done',
+              cards: result.cards,
+              annotatedPreview,
+              score: -computeScore(result.cards),
+            }
+          : prev,
       );
     } catch (err) {
       setScan((prev) =>
         prev
           ? { ...prev, status: 'error', error: err.message || t('board.recognitionFailed') }
-          : prev
+          : prev,
       );
     }
   };
@@ -632,7 +609,10 @@ export default function RoomBoard({
                                 ) : (
                                   <ScoreCell
                                     value={raw}
-                                    label={t('board.scoreLabel', { name: p.name, n: roundIndex + 1 })}
+                                    label={t('board.scoreLabel', {
+                                      name: p.name,
+                                      n: roundIndex + 1,
+                                    })}
                                     busy={busy}
                                     onCommit={(value) => handleSetScore(round.id, p.id, value)}
                                   />
@@ -674,11 +654,7 @@ export default function RoomBoard({
               >
                 {t('board.newRound')}
               </button>
-              <button
-                className={BTN_ACCENT}
-                disabled={busy}
-                onClick={openAddPlayer}
-              >
+              <button className={BTN_ACCENT} disabled={busy} onClick={openAddPlayer}>
                 {t('board.newPlayer')}
               </button>
             </div>
@@ -703,11 +679,7 @@ export default function RoomBoard({
         onChange={handleNativeFile}
       />
 
-      <Modal
-        isVisible={addPlayerModalOpen}
-        onClose={closeAddPlayer}
-        labelledBy="new-player-title"
-      >
+      <Modal isVisible={addPlayerModalOpen} onClose={closeAddPlayer} labelledBy="new-player-title">
         <h2 id="new-player-title" className="m-0 mb-4 text-lg font-bold text-white">
           {t('board.addPlayerTitle')}
         </h2>
@@ -781,7 +753,7 @@ export default function RoomBoard({
                     {modelReady ? t('board.aim') : t('board.loadingDetector')}
                   </p>
                 )}
-                <div className="flex justify-between gap-2.5 max-sm:flex-wrap max-sm:[&>button]:min-h-12 max-sm:[&>button]:text-[15px] [&>button]:flex-1">
+                <div className="flex justify-between gap-2.5 max-sm:flex-wrap [&>button]:flex-1 max-sm:[&>button]:min-h-12 max-sm:[&>button]:text-[15px]">
                   <button className={BTN_GHOST} onClick={closeScan}>
                     {t('common.cancel')}
                   </button>
@@ -874,7 +846,7 @@ export default function RoomBoard({
                     value={scan.score}
                     onChange={(event) =>
                       setScan((prev) =>
-                        prev ? { ...prev, score: Number(event.target.value) } : prev
+                        prev ? { ...prev, score: Number(event.target.value) } : prev,
                       )
                     }
                   />
