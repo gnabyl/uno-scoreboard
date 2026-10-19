@@ -456,8 +456,36 @@ export default function RoomBoard({
         <>
           <div className="min-h-0 flex-1 overflow-y-auto pb-10">
             {rounds.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-edge bg-panel px-5 py-10 text-center text-sm text-faint">
-                {t('board.noRounds')}
+              <div className="rounded-2xl border border-edge bg-panel p-4 shadow-panel">
+                <h2 className="m-0 text-sm font-bold text-muted">{t('board.players')}</h2>
+                <ul className="m-0 mt-3 flex list-none flex-col gap-2 p-0">
+                  {players.map((p, pi) => (
+                    <li
+                      key={p.id}
+                      className="flex items-center gap-3 rounded-xl border border-edge-soft bg-deep px-3 py-2"
+                    >
+                      <span className="flex w-4 shrink-0 items-center justify-center">
+                        {p.id !== me && (
+                          <button
+                            className="rounded border-none bg-transparent p-0 text-sm leading-none text-[#ff4d4d] transition hover:text-[#ff6b6b]"
+                            title={t('board.removePlayer', { name: p.name })}
+                            aria-label={t('board.removePlayer', { name: p.name })}
+                            disabled={busy}
+                            onClick={() => handleRemovePlayer(p.id)}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </span>
+                      <span
+                        className={`h-3 w-3 shrink-0 rounded-full ${PLAYER_COLORS[pi % 4]}`}
+                        aria-hidden="true"
+                      />
+                      <span className="min-w-0 flex-1 truncate text-sm text-fg">{p.name}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="m-0 mt-3 text-center text-xs text-faint">{t('board.noRounds')}</p>
               </div>
             ) : (
               <ol className="m-0 flex list-none flex-col gap-3 p-0">
@@ -518,7 +546,7 @@ export default function RoomBoard({
                                   <span className="flex w-4 shrink-0 items-center justify-center">
                                     {p.id !== me && (
                                       <button
-                                        className="rounded border-none bg-transparent p-0 text-sm leading-none text-faint opacity-70 transition hover:text-[#ff6b6b]"
+                                        className="rounded border-none bg-transparent p-0 text-sm leading-none text-[#ff4d4d] transition hover:text-[#ff6b6b]"
                                         title={t('board.removePlayer', { name: p.name })}
                                         aria-label={t('board.removePlayer', { name: p.name })}
                                         disabled={busy}
