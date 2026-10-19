@@ -2,19 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { LANGUAGES, useI18n, type Language } from '../i18n';
 
 /**
- * Floating language picker pinned to the bottom-left corner.
+ * Language picker.
  *
- * The offset lines the switcher up with the `+ New round` button in the room
- * view: that button sits 40px above the board's bottom edge (`mb-10`), which in
- * turn clears the page padding (16px, or 24px from `sm`) - hence 56px / 64px.
- * It also keeps the picker above the fixed LogPanel bar at the very bottom.
+ * Rendered inline in each page header (top-right) instead of floating over the
+ * board, so it never overlaps content. The open list drops below the trigger
+ * and is right-aligned so it stays on-screen on narrow viewports.
  *
  * A custom listbox is used instead of a native `<select>` so the open list can
  * be themed (native popups ignore the app's dark styling on some platforms).
  * Language names stay in their own language (e.g. "Tiếng Việt") so people can
  * find their choice regardless of the currently active language.
  */
-export function LanguageSwitcher() {
+export function LanguageSwitcher({ className = '' }: { className?: string }) {
   const { language, setLanguage, t } = useI18n();
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -91,24 +90,21 @@ export function LanguageSwitcher() {
   };
 
   return (
-    <div ref={rootRef} className="fixed bottom-14 left-4 z-[10000] sm:bottom-16">
+    <div ref={rootRef} className={`relative shrink-0 ${className}`}>
       <div className="relative">
         <button
           ref={buttonRef}
           type="button"
-          className="inline-flex items-center gap-1.5 rounded-xl border border-edge bg-panel/95 px-2.5 py-1.5 text-xs font-semibold text-muted shadow-panel backdrop-blur-sm transition hover:text-fg focus:outline-none focus-visible:border-accent focus-visible:text-fg"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-edge bg-panel/95 text-muted shadow-panel transition hover:text-fg focus:outline-none focus-visible:border-accent focus-visible:text-fg sm:h-10 sm:w-10"
           aria-haspopup="listbox"
           aria-expanded={open}
           aria-label={`${t('common.language')}: ${current.label}`}
+          title={`${t('common.language')}: ${current.label}`}
           onClick={() => (open ? setOpen(false) : openList(currentIndex < 0 ? 0 : currentIndex))}
           onKeyDown={onButtonKeyDown}
         >
-          <span className="text-sm leading-none" aria-hidden="true">
+          <span className="text-base leading-none" aria-hidden="true">
             🌐
-          </span>
-          <span>{current.label}</span>
-          <span className="text-[10px] leading-none" aria-hidden="true">
-            {open ? '▴' : '▾'}
           </span>
         </button>
 
@@ -119,7 +115,7 @@ export function LanguageSwitcher() {
             tabIndex={-1}
             aria-label={t('common.language')}
             aria-activedescendant={`lang-option-${LANGUAGES[activeIndex].code}`}
-            className="absolute bottom-full left-0 z-[10001] mb-2 w-max min-w-full list-none rounded-xl border border-edge bg-panel p-1 shadow-modal outline-none"
+            className="absolute right-0 top-full z-[10001] mt-2 w-max min-w-full list-none rounded-xl border border-edge bg-panel p-1 shadow-modal outline-none"
             onKeyDown={onListKeyDown}
           >
             {LANGUAGES.map((option, index) => {

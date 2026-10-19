@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { createRoom, normalizeRoomCode } from '../api/rooms';
 import { describeRoomError, parseRoomCode } from '../lib/roomCode';
 import { useTranslation } from '../i18n';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import {
   BTN_ACCENT,
   BTN_PRIMARY,
@@ -59,6 +60,7 @@ export default function LandingPage() {
             {t('app.title')}
           </h1>
         </div>
+        <LanguageSwitcher className="ml-auto" />
       </header>
 
       <main className="flex flex-1 flex-col justify-center">

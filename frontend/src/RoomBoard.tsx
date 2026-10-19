@@ -454,7 +454,7 @@ export default function RoomBoard({
         </div>
       ) : (
         <>
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="min-h-0 flex-1 overflow-y-auto pb-10">
             {rounds.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-edge bg-panel px-5 py-10 text-center text-sm text-faint">
                 {t('board.noRounds')}
@@ -602,19 +602,19 @@ export default function RoomBoard({
                 })}
               </ol>
             )}
+
+            <div className="mt-3 flex justify-center">
+              <button
+                className={BTN_ACCENT}
+                onClick={handleAddRound}
+                disabled={players.length === 0 || busy}
+              >
+                {t('board.newRound')}
+              </button>
+            </div>
           </div>
         </>
       )}
-
-      <div className="mt-3 mb-10 flex shrink-0 justify-center">
-        <button
-          className={BTN_ACCENT}
-          onClick={handleAddRound}
-          disabled={players.length === 0 || busy}
-        >
-          {t('board.newRound')}
-        </button>
-      </div>
 
       <input
         ref={fileInputRef}

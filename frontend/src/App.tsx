@@ -1,6 +1,5 @@
 import { Analytics } from '@vercel/analytics/react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { LanguageSwitcher } from './components/LanguageSwitcher';
 import LandingPage from './pages/LandingPage';
 import RoomPage from './pages/RoomPage';
 
@@ -13,7 +12,6 @@ export default function App() {
         <Route path="/r/:code" element={<RoomPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      <LanguageSwitcher />
     </>
   );
 }

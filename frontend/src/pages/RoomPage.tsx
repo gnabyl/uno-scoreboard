@@ -10,6 +10,7 @@ import {
 import RoomBoard from '../RoomBoard';
 import { describeRoomError } from '../lib/roomCode';
 import { useTranslation } from '../i18n';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import {
   BTN_ACCENT,
   BTN_GHOST,
@@ -221,7 +222,7 @@ export default function RoomPage() {
         <div className="min-w-0 flex-1">
           <Link
             to="/"
-            className="text-xl font-extrabold tracking-[-0.4px] text-white no-underline sm:text-2xl"
+            className="block truncate text-xl font-extrabold tracking-[-0.4px] text-white no-underline sm:text-2xl"
           >
             {t('app.title')}
           </Link>
@@ -245,8 +246,27 @@ export default function RoomPage() {
             </div>
           )}
         </div>
-        <Link className={`${BTN_GHOST} no-underline`} to="/">
-          {t('room.leave')}
+        <LanguageSwitcher />
+        <Link
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#5a2a2a] bg-transparent text-[#ff4d4d] no-underline transition hover:border-[#ff4d4d] hover:bg-[#2a1416] hover:text-[#ff6b6b] focus:outline-none focus-visible:border-[#ff4d4d] sm:h-10 sm:w-10"
+          to="/"
+          title={t('room.leave')}
+          aria-label={t('room.leave')}
+        >
+          <svg
+            className="h-5 w-5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
         </Link>
       </header>
 
