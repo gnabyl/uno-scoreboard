@@ -9,7 +9,9 @@ import {
 } from '../api-helper/rooms';
 import RoomBoard from '../components/RoomBoard';
 import { describeRoomError } from '../lib/roomCode';
-import { useTranslation } from '../i18n';
+import { buildScoreboard } from '../lib/scoreboard';
+import { exportScoreboardPng } from '../lib/scoreboardPng';
+import { useI18n } from '../i18n';
 import { HeaderMenu } from '../components/HeaderMenu';
 import {
   BTN_ACCENT,
@@ -23,7 +25,7 @@ import {
 
 export default function RoomPage() {
   const { code: routeCode } = useParams();
-  const t = useTranslation();
+  const { t, language } = useI18n();
 
   const code = useMemo(() => {
     try {
@@ -38,6 +40,7 @@ export default function RoomPage() {
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [copied, setCopied] = useState<'code' | 'link' | null>(null);
   const versionRef = useRef(0);
 
@@ -117,6 +120,36 @@ export default function RoomPage() {
 
   const copyCode = () => copyText(code, 'code');
   const copyLink = () => copyText(shareUrl, 'link');
+
+  const handleExportPng = useCallback(async () => {
+    if (!snapshot || exporting) return;
+
+    setExporting(true);
+    setError(null);
+    try {
+      const date = new Date();
+      const generated = t('export.generated', {
+        date: date.toLocaleDateString(language, {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        }),
+      });
+
+      await exportScoreboardPng({
+        scoreboard: buildScoreboard(snapshot.players, snapshot.rounds),
+        code: code ?? '',
+        title: t('app.title'),
+        generated,
+        footer: t('export.footer', { code: code ?? '' }),
+        labels: { round: t('export.round'), total: t('export.total') },
+      });
+    } catch {
+      setError(t('room.exportFailed'));
+    } finally {
+      setExporting(false);
+    }
+  }, [code, exporting, language, snapshot, t]);
 
   let content;
 
@@ -231,7 +264,14 @@ export default function RoomPage() {
             </div>
           )}
         </div>
-        <HeaderMenu code={code} copied={copied} onCopyCode={copyCode} onCopyLink={copyLink} />
+        <HeaderMenu
+          code={code}
+          copied={copied}
+          onCopyCode={copyCode}
+          onCopyLink={copyLink}
+          onExportPng={snapshot && snapshot.players.length > 0 ? handleExportPng : undefined}
+          exporting={exporting}
+        />
       </header>
 
       <main className="flex min-h-0 flex-1 flex-col">{content}</main>

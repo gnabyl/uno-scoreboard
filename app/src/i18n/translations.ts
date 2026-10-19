@@ -48,6 +48,9 @@ export const en = {
   'room.copyCode': 'Copy code',
   'room.copyLink': 'Copy link',
   'room.leave': 'Leave',
+  'room.exportPng': 'Export PNG',
+  'room.exporting': 'Creating image…',
+  'room.exportFailed': 'Could not create the image. Try again.',
 
   'board.addPlayerTitle': 'Add player',
   'board.newPlayerName': 'New player name',
@@ -86,6 +89,11 @@ export const en = {
   'board.applyScore': 'Apply score',
   'board.cardCountSingular': '{count} card',
   'board.cardCountPlural': '{count} cards',
+
+  'export.round': 'Round',
+  'export.total': 'Total',
+  'export.generated': 'Generated {date}',
+  'export.footer': 'Generated from room {code} · UNO Flip scoring',
 
   'log.idle': 'Idle',
   'log.empty': 'No logs yet.',
@@ -150,6 +158,9 @@ export const vi: Record<TranslationKey, string> = {
   'room.copyCode': 'Sao chép mã',
   'room.copyLink': 'Sao chép liên kết',
   'room.leave': 'Rời phòng',
+  'room.exportPng': 'Xuất PNG',
+  'room.exporting': 'Đang tạo ảnh…',
+  'room.exportFailed': 'Không thể tạo ảnh. Hãy thử lại.',
 
   'board.addPlayerTitle': 'Thêm người chơi',
   'board.newPlayerName': 'Tên người chơi mới',
@@ -188,6 +199,11 @@ export const vi: Record<TranslationKey, string> = {
   'board.applyScore': 'Nhập điểm',
   'board.cardCountSingular': '{count} lá bài',
   'board.cardCountPlural': '{count} lá bài',
+
+  'export.round': 'Ván',
+  'export.total': 'Tổng',
+  'export.generated': 'Tạo ngày {date}',
+  'export.footer': 'Tạo từ phòng {code} · Cách tính điểm UNO Flip',
 
   'log.idle': 'Chờ',
   'log.empty': 'Chưa có nhật ký.',

@@ -3,6 +3,7 @@ import { recognizeCards } from '../api-helper/cardRecognition';
 import { preloadModel } from '../api-helper/localModel';
 import LogPanel from './LogPanel';
 import { computeScore, scoreForCard } from '../lib/unoScoring';
+import { buildScoreboard } from '../lib/scoreboard';
 import { addPlayer, addRound, deletePlayer, deleteRound, setScore } from '../api-helper/rooms';
 import { describeRoomError } from '../lib/roomCode';
 import { useTranslation } from '../i18n';
@@ -280,57 +281,10 @@ export default function RoomBoard({
     );
   };
 
-  const roundSummaries = useMemo<Record<string, { sum: number; winner: string | null }>>(() => {
-    const map: Record<string, { sum: number; winner: string | null }> = {};
-    rounds.forEach((round) => {
-      let sum = 0;
-      let winner: string | null = null;
-      let multiple = false;
-      players.forEach((p) => {
-        const raw = round.scores[p.id];
-        const value = parseFloat(raw);
-        // A round winner is the player left blank. An explicit 0 is a score,
-        // not a winner marker.
-        if (raw === null || raw === undefined || raw === '' || Number.isNaN(value)) {
-          if (winner === null) winner = p.id;
-          else if (winner !== p.id) multiple = true;
-        } else {
-          sum += value;
-        }
-      });
-      map[round.id] = { sum, winner: multiple ? null : winner };
-    });
-    return map;
-  }, [rounds, players]);
-
-  const totals = useMemo<Record<string, number>>(() => {
-    const result: Record<string, number> = {};
-    players.forEach((p) => {
-      result[p.id] = 0;
-    });
-    rounds.forEach((round) => {
-      const summary = roundSummaries[round.id];
-      players.forEach((p) => {
-        const value = parseFloat(round.scores[p.id]);
-        if (!Number.isNaN(value)) result[p.id] += value;
-      });
-      if (summary.winner) result[summary.winner] += Math.abs(summary.sum);
-    });
-    return result;
-  }, [players, rounds, roundSummaries]);
-
-  const hasData = rounds.some((round) =>
-    players.some((p) => {
-      const value = parseFloat(round.scores[p.id]);
-      // Explicit 0 rows are used for late joiners, so they must not count as
-      // score data on their own.
-      return Number.isFinite(value) && value !== 0;
-    }),
-  );
-
-  const maxTotal = hasData ? Math.max(...players.map((p) => totals[p.id])) : null;
-  const isWinner = (playerId: string) =>
-    hasData && players.length > 1 && totals[playerId] === maxTotal;
+  const scoreboard = useMemo(() => buildScoreboard(players, rounds), [players, rounds]);
+  const roundSummaries = scoreboard.byRound;
+  const totals = scoreboard.totals;
+  const isWinner = (playerId: string) => scoreboard.leaderIds.includes(playerId);
 
   // ---------- Photo scanning ----------
   const attachVideo = (node: HTMLVideoElement | null) => {

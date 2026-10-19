@@ -62,6 +62,64 @@ test('the room menu confirms a copied item without closing', () => {
   expect(screen.getByRole('menu')).toBeInTheDocument();
 });
 
+test('exports the scoreboard from the room menu', () => {
+  const onExportPng = vi.fn();
+
+  render(
+    <I18nProvider>
+      <MemoryRouter>
+        <HeaderMenu
+          code="ABCDEFGH"
+          onCopyCode={() => {}}
+          onCopyLink={() => {}}
+          onExportPng={onExportPng}
+        />
+      </MemoryRouter>
+    </I18nProvider>,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Open menu' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Export PNG' }));
+
+  expect(onExportPng).toHaveBeenCalledTimes(1);
+});
+
+test('disables the export item while the image is generated', () => {
+  render(
+    <I18nProvider>
+      <MemoryRouter>
+        <HeaderMenu
+          code="ABCDEFGH"
+          onCopyCode={() => {}}
+          onCopyLink={() => {}}
+          onExportPng={() => {}}
+          exporting
+        />
+      </MemoryRouter>
+    </I18nProvider>,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Open menu' }));
+  const item = screen.getByRole('menuitem', { name: 'Creating image…' });
+
+  expect(item).toHaveAttribute('aria-disabled', 'true');
+  expect(item).toBeDisabled();
+});
+
+test('hides the export item until a board is loaded', () => {
+  render(
+    <I18nProvider>
+      <MemoryRouter>
+        <HeaderMenu code="ABCDEFGH" onCopyCode={() => {}} onCopyLink={() => {}} />
+      </MemoryRouter>
+    </I18nProvider>,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Open menu' }));
+
+  expect(screen.queryByRole('menuitem', { name: /export png/i })).not.toBeInTheDocument();
+});
+
 test('leaving from the room menu returns to the landing page', () => {
   render(
     <I18nProvider>

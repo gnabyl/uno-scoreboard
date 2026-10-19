@@ -15,6 +15,8 @@ export function HeaderMenu({
   copied = null,
   onCopyCode,
   onCopyLink,
+  onExportPng,
+  exporting = false,
   className = '',
 }: {
   code?: string | null;
@@ -22,6 +24,10 @@ export function HeaderMenu({
   copied?: 'code' | 'link' | null;
   onCopyCode?: () => void;
   onCopyLink?: () => void;
+  /** Downloads the scoreboard as a PNG; omitted until the board is loaded. */
+  onExportPng?: () => void;
+  /** True while the PNG is being generated. */
+  exporting?: boolean;
   className?: string;
 }) {
   const { language, setLanguage, t } = useI18n();
@@ -49,6 +55,17 @@ export function HeaderMenu({
             keepOpen: true,
             onSelect: onCopyLink,
           },
+          ...(onExportPng
+            ? [
+                {
+                  key: 'export-png',
+                  label: exporting ? t('room.exporting') : t('room.exportPng'),
+                  icon: '🖼️',
+                  disabled: exporting,
+                  onSelect: onExportPng,
+                },
+              ]
+            : []),
         ],
       });
     }
@@ -81,7 +98,18 @@ export function HeaderMenu({
     }
 
     return result;
-  }, [code, copied, language, navigate, onCopyCode, onCopyLink, setLanguage, t]);
+  }, [
+    code,
+    copied,
+    exporting,
+    language,
+    navigate,
+    onCopyCode,
+    onCopyLink,
+    onExportPng,
+    setLanguage,
+    t,
+  ]);
 
   return <Menu label={t('menu.open')} sections={sections} className={className} />;
 }
