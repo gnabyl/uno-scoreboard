@@ -187,8 +187,8 @@ is a small React context in [`src/i18n/`](./src/i18n/):
 
 The active language is picked on first load from `localStorage` (key
 `uno.lang`), then the browser's preferred languages, then English. Users change
-it with the header [`LanguageSwitcher`](./src/components/LanguageSwitcher.tsx),
-which persists the choice.
+it from the header [`HeaderMenu`](./src/components/HeaderMenu.tsx), which wraps
+the shared [`Menu`](./src/components/Menu.tsx) and persists the choice.
 
 ### Adding a language
 

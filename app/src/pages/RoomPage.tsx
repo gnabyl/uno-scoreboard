@@ -10,7 +10,7 @@ import {
 import RoomBoard from '../components/RoomBoard';
 import { describeRoomError } from '../lib/roomCode';
 import { useTranslation } from '../i18n';
-import { LanguageSwitcher } from '../components/LanguageSwitcher';
+import { HeaderMenu } from '../components/HeaderMenu';
 import {
   BTN_ACCENT,
   BTN_GHOST,
@@ -38,7 +38,7 @@ export default function RoomPage() {
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState<string | null>(null);
+  const [copied, setCopied] = useState<'code' | 'link' | null>(null);
   const versionRef = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -226,47 +226,12 @@ export default function RoomPage() {
             {t('app.title')}
           </Link>
           {code && (
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-              <span className="font-mono text-xs font-bold tracking-[0.14em] text-muted sm:text-sm">
-                {code}
-              </span>
-              <button
-                className="rounded border-none bg-transparent p-0 text-[11px] font-semibold text-accent hover:underline"
-                onClick={copyCode}
-              >
-                {copied === 'code' ? t('common.copied') : t('room.copyCode')}
-              </button>
-              <button
-                className="rounded border-none bg-transparent p-0 text-[11px] font-semibold text-accent hover:underline"
-                onClick={copyLink}
-              >
-                {copied === 'link' ? t('common.copied') : t('room.copyLink')}
-              </button>
+            <div className="mt-1 truncate font-mono text-xs font-bold tracking-[0.14em] text-muted sm:text-sm">
+              {code}
             </div>
           )}
         </div>
-        <LanguageSwitcher />
-        <Link
-          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#5a2a2a] bg-transparent text-[#ff4d4d] no-underline transition hover:border-[#ff4d4d] hover:bg-[#2a1416] hover:text-[#ff6b6b] focus:outline-none focus-visible:border-[#ff4d4d] sm:h-10 sm:w-10"
-          to="/"
-          title={t('room.leave')}
-          aria-label={t('room.leave')}
-        >
-          <svg
-            className="h-5 w-5"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" y1="12" x2="9" y2="12" />
-          </svg>
-        </Link>
+        <HeaderMenu code={code} copied={copied} onCopyCode={copyCode} onCopyLink={copyLink} />
       </header>
 
       <main className="flex min-h-0 flex-1 flex-col">{content}</main>

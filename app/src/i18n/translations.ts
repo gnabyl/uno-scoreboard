@@ -16,6 +16,9 @@ export const en = {
   'common.link': 'link',
   'common.language': 'Language',
 
+  'menu.open': 'Open menu',
+  'menu.room': 'Room',
+
   'landing.heading': 'Start a game or join one',
   'landing.subheading': 'One shared board for the whole table. No accounts',
   'landing.host.heading': 'Host a game',
@@ -114,6 +117,9 @@ export const vi: Record<TranslationKey, string> = {
   'common.code': 'mã phòng',
   'common.link': 'liên kết',
   'common.language': 'Ngôn ngữ',
+
+  'menu.open': 'Mở menu',
+  'menu.room': 'Phòng',
 
   'landing.heading': 'Tạo phòng hoặc tham gia cùng bạn bè',
   'landing.subheading': 'Một bảng điểm chung cho tất cả. Không cần tài khoản',

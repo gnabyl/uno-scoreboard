@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { createRoom, normalizeRoomCode } from '../api-helper/rooms';
 import { describeRoomError, parseRoomCode } from '../lib/roomCode';
 import { useTranslation } from '../i18n';
-import { LanguageSwitcher } from '../components/LanguageSwitcher';
+import { HeaderMenu } from '../components/HeaderMenu';
 import { BTN_ACCENT, BTN_PRIMARY, CARD, ErrorNotice, INPUT, Logo } from '../components/ui';
 
 export default function LandingPage() {
@@ -53,7 +53,7 @@ export default function LandingPage() {
             {t('app.title')}
           </h1>
         </div>
-        <LanguageSwitcher className="ml-auto" />
+        <HeaderMenu className="ml-auto" />
       </header>
 
       <main className="flex flex-1 flex-col justify-center">
