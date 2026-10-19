@@ -454,57 +454,6 @@ export default function RoomBoard({
         </div>
       ) : (
         <>
-          <section className="mb-3 shrink-0 rounded-2xl border border-edge bg-panel p-4 shadow-panel">
-            <h2 className="sr-only">{t('board.leaderboard')}</h2>
-            <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
-              {players.map((p, i) => {
-                const winner = isWinner(p.id);
-                const total = totals[p.id];
-                return (
-                  <li
-                    key={p.id}
-                    className={`flex w-fit max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold ${winner
-                        ? 'border-transparent bg-[rgba(42,157,143,1)] text-white'
-                        : 'border-edge bg-raised text-fg'
-                      }`}
-                  >
-                    <span
-                      className={`h-2.5 w-2.5 shrink-0 rounded-full ${PLAYER_COLORS[i % 4]}`}
-                      aria-hidden="true"
-                    />
-                    <span className="min-w-0 max-w-[10rem] truncate">{p.name}</span>
-                    {p.id !== me && (
-                      <button
-                        className="shrink-0 rounded border-none bg-transparent p-0 text-sm leading-none text-faint opacity-70 transition hover:text-[#ff6b6b]"
-                        title={t('board.removePlayer', { name: p.name })}
-                        aria-label={t('board.removePlayer', { name: p.name })}
-                        disabled={busy}
-                        onClick={() => handleRemovePlayer(p.id)}
-                      >
-                        ×
-                      </button>
-                    )}
-                    <span
-                      className={`w-9 shrink-0 text-right tabular-nums ${
-                        total < 0 && !winner ? 'text-[#ff4d4d]' : ''
-                      }`}
-                    >
-                      {total}
-                    </span>
-                    <span
-                      className={`shrink-0 text-center text-[14px] ${
-                        winner ? 'inline-block w-4' : 'hidden'
-                      }`}
-                      aria-label={winner ? t('board.leadingPlayer') : undefined}
-                    >
-                      {winner ? '👑' : null}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-
           <div className="min-h-0 flex-1 overflow-y-auto">
             {rounds.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-edge bg-panel px-5 py-10 text-center text-sm text-faint">
@@ -515,6 +464,7 @@ export default function RoomBoard({
                 {rounds.map((round, roundIndex) => {
                   const summary = roundSummaries[round.id];
                   const isCollapsed = collapsed.has(round.id);
+                  const isLastRound = roundIndex === rounds.length - 1;
                   const winnerName = summary.winner
                     ? players.find((p) => p.id === summary.winner)?.name
                     : null;
@@ -570,6 +520,21 @@ export default function RoomBoard({
                                 key={p.id}
                                 className="flex items-center gap-3 rounded-xl border border-edge-soft bg-deep px-3 py-2"
                               >
+                                {isLastRound && (
+                                  <span className="flex w-4 shrink-0 items-center justify-center">
+                                    {p.id !== me && (
+                                      <button
+                                        className="rounded border-none bg-transparent p-0 text-sm leading-none text-faint opacity-70 transition hover:text-[#ff6b6b]"
+                                        title={t('board.removePlayer', { name: p.name })}
+                                        aria-label={t('board.removePlayer', { name: p.name })}
+                                        disabled={busy}
+                                        onClick={() => handleRemovePlayer(p.id)}
+                                      >
+                                        ×
+                                      </button>
+                                    )}
+                                  </span>
+                                )}
                                 <span
                                   className={`h-3 w-3 shrink-0 rounded-full ${PLAYER_COLORS[pi % 4]}`}
                                   aria-hidden="true"
@@ -577,6 +542,24 @@ export default function RoomBoard({
                                 <span className="min-w-0 flex-1 truncate text-sm text-fg">
                                   {p.name}
                                 </span>
+                                {isLastRound && (
+                                  <span
+                                    className="flex shrink-0 items-center gap-1 rounded-md bg-raised px-2 py-0.5 text-xs font-bold tabular-nums"
+                                    title={t('board.currentScore')}
+                                  >
+                                    <span className={isWinner(p.id) ? 'text-[#7dff9a]' : 'text-fg'}>
+                                      {totals[p.id]}
+                                    </span>
+                                    {isWinner(p.id) && (
+                                      <span
+                                        className="text-[13px] leading-none"
+                                        aria-label={t('board.leadingPlayer')}
+                                      >
+                                        👑
+                                      </span>
+                                    )}
+                                  </span>
+                                )}
                                 {isRoundWinner ? (
                                   <span
                                     className={`${SCORE_FIELD} inline-flex items-center justify-center font-bold text-[#7dff9a]`}
