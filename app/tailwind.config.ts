@@ -24,7 +24,6 @@ const config: Config = {
         },
       },
       boxShadow: {
-        logo: '0 8px 20px rgba(230, 57, 70, 0.35)',
         accent: '0 6px 16px rgba(76, 154, 255, 0.3)',
         panel: '0 18px 40px rgba(0, 0, 0, 0.35)',
         modal: '0 24px 60px rgba(0, 0, 0, 0.5)',

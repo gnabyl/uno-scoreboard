@@ -13,12 +13,14 @@ export const CARD = 'rounded-2xl border border-edge bg-panel p-5 shadow-panel sm
 
 export function Logo() {
   return (
-    <div
-      className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-red to-brand-orange text-[22px] shadow-logo sm:h-[58px] sm:w-[58px] sm:rounded-2xl sm:text-[30px]"
+    <img
+      src="/logo192.png"
+      alt=""
       aria-hidden="true"
-    >
-      🃏
-    </div>
+      width={58}
+      height={58}
+      className="h-11 w-11 shrink-0 rounded-xl object-contain sm:h-[58px] sm:w-[58px] sm:rounded-2xl"
+    />
   );
 }
 
