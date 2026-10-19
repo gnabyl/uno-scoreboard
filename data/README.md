@@ -9,12 +9,12 @@ sprites from sprite sheets, downloads background photos, and composites
 - Python 3.10+
 - `Pillow`, `numpy`
 
-(The data scripts run on the base interpreter — not the training venv, which
+(The data scripts run on the base interpreter - not the training venv, which
 has ultralytics/torch.)
 
 ## Scripts
 
-### 1. `extract_cards.py` — sprite extraction
+### 1. `extract_cards.py` - sprite extraction
 
 Slices the 6×12 sprite sheets into per-card transparent PNGs.
 
@@ -26,7 +26,7 @@ python extract_cards.py flip_dark_combine.png  --side dark
 Output: `cards/light/*.png` (54 cards) and `cards/dark/*.png` (54 cards),
 named by class (e.g. `light_blue_7.png`, `dark_pink_flip.png`). Run once.
 
-### 2. `download_backgrounds.py` — backgrounds
+### 2. `download_backgrounds.py` - backgrounds
 
 ```powershell
 python download_backgrounds.py 300   # 300 images into background/
@@ -34,7 +34,7 @@ python download_backgrounds.py 300   # 300 images into background/
 
 Falls back to the DTD texture dataset when no Pexels API key is set.
 
-### 3. `compose_hands.py` — generate the dataset
+### 3. `compose_hands.py` - generate the dataset
 
 Composites random fanned hands onto backgrounds and writes YOLO labels.
 
@@ -69,7 +69,7 @@ Key flags:
 Output: `hands/images/{train,val}/*.png` + `hands/labels/{train,val}/*.txt`,
 plus `data.yaml` and `classes.txt` (18 type-only classes).
 
-### 4. `preview_dataset.py` — visual check
+### 4. `preview_dataset.py` - visual check
 
 Draws the YOLO boxes over existing dataset images.
 
@@ -79,7 +79,7 @@ python preview_dataset.py --split train --count 10
 
 Output: `hands/preview/<split>/`.
 
-### 5. `sweep_scale.py` — inference scale sweep
+### 5. `sweep_scale.py` - inference scale sweep
 
 Runs the trained model over one photo at multiple scales (diagnostic).
 

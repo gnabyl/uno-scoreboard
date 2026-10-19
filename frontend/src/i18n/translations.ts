@@ -15,10 +15,9 @@ export const en = {
   'common.link': 'link',
   'common.language': 'Language',
 
-  'landing.tagline': 'Scan the cards left in hand each round. Highest total wins.',
   'landing.heading': 'Start a game or join one',
   'landing.subheading':
-    'One shared board for the whole table. No accounts — everyone can edit any score.',
+    'One shared board for the whole table. No accounts',
   'landing.host.heading': 'Host a game',
   'landing.host.description':
     "Create a room and share the link. You'll get an 8-character code.",
@@ -35,7 +34,7 @@ export const en = {
 
   'room.invalid.title': "That link doesn't look right",
   'room.invalid.bodyBefore': 'Room links look like',
-  'room.invalid.bodyAfter': '— eight characters, no 0, O, 1, I or L.',
+  'room.invalid.bodyAfter': '- eight characters, no 0, O, 1, I or L.',
   'room.loading': 'Loading room',
   'room.missing.title': 'Room not found',
   'room.missing.bodyBefore': 'There is no room with code',
@@ -59,10 +58,9 @@ export const en = {
   'board.noPlayers.title': 'No players yet',
   'board.noPlayers.body': 'Share the room link so players can join.',
   'board.leaderboard': 'Leaderboard',
-  'board.you': 'you',
   'board.removePlayer': 'Remove {name}',
   'board.leadingPlayer': 'Leading player',
-  'board.noRounds': 'No rounds yet — press “+ New round” to start scoring.',
+  'board.noRounds': 'No rounds yet - press “+ New round” to start scoring.',
   'board.round': 'Round {n}',
   'board.roundWon': '{name} won',
   'board.removeRound': 'Remove round {n}',
@@ -116,11 +114,9 @@ export const vi: Record<TranslationKey, string> = {
   'common.link': 'liên kết',
   'common.language': 'Ngôn ngữ',
 
-  'landing.tagline':
-    'Quét các lá bài còn lại trên tay mỗi ván. Tổng điểm cao nhất sẽ thắng.',
   'landing.heading': 'Tạo phòng hoặc tham gia cùng bạn bè',
   'landing.subheading':
-    'Một bảng điểm chung cho cả bàn. Không cần tài khoản — ai cũng sửa được điểm.',
+    'Một bảng điểm chung cho tất cả. Không cần tài khoản',
   'landing.host.heading': 'Tạo phòng',
   'landing.host.description':
     'Tạo phòng rồi chia sẻ liên kết. Bạn sẽ nhận được mã gồm 8 ký tự.',
@@ -137,7 +133,7 @@ export const vi: Record<TranslationKey, string> = {
 
   'room.invalid.title': 'Liên kết này có vẻ không đúng',
   'room.invalid.bodyBefore': 'Liên kết phòng có dạng',
-  'room.invalid.bodyAfter': '— gồm tám ký tự, không có 0, O, 1, I hoặc L.',
+  'room.invalid.bodyAfter': '- gồm tám ký tự, không có 0, O, 1, I hoặc L.',
   'room.loading': 'Đang tải phòng',
   'room.missing.title': 'Không tìm thấy phòng',
   'room.missing.bodyBefore': 'Không có phòng nào với mã',
@@ -161,10 +157,9 @@ export const vi: Record<TranslationKey, string> = {
   'board.noPlayers.title': 'Chưa có người chơi',
   'board.noPlayers.body': 'Chia sẻ liên kết phòng để mọi người tham gia.',
   'board.leaderboard': 'Bảng xếp hạng',
-  'board.you': 'bạn',
   'board.removePlayer': 'Xóa {name}',
   'board.leadingPlayer': 'Người dẫn đầu',
-  'board.noRounds': 'Chưa có ván nào — nhấn “+ Ván mới” để bắt đầu tính điểm.',
+  'board.noRounds': 'Chưa có ván nào - nhấn “+ Ván mới” để bắt đầu tính điểm.',
   'board.round': 'Ván {n}',
   'board.roundWon': '{name} thắng',
   'board.removeRound': 'Xóa ván {n}',

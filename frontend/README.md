@@ -9,10 +9,10 @@ write tables directly.
 
 ### One-time setup
 
-1. **Enable anonymous sign-ins** — Supabase dashboard → Authentication →
+1. **Enable anonymous sign-ins** - Supabase dashboard → Authentication →
    Providers → Anonymous → Enable. Each device gets a stable anonymous user on
    first visit. Without this toggle every RPC fails with `auth_required`.
-2. **Apply the schema** — run
+2. **Apply the schema** - run
    [`../supabase/migrations/20261018201500_init_rooms.sql`](../supabase/migrations/20261018201500_init_rooms.sql)
    in the SQL editor, or `supabase db push` if you use the CLI.
 3. **Set the client env vars** locally in `.env` and in Vercel for every
@@ -64,7 +64,7 @@ npm run vercel:dev
 ```
 
 Then open <http://localhost:5173>. `vercel dev` binds port 5173 and starts
-`npm run dev` (Vite) as its dev command on an internal port — the port is
+`npm run dev` (Vite) as its dev command on an internal port - the port is
 passed to Vite through the `$PORT` placeholder in
 [`vercel.json`](./vercel.json), so Vercel and Vite can never disagree about it.
 That means:
@@ -83,7 +83,7 @@ cannot load the detector. Use `npm run vercel:dev` for anything that scans.
 
 The app is written in TypeScript. `npm run typecheck` runs `tsc --noEmit` over
 `src/`, `api/` and the config files. The project currently compiles with
-`strict: false` (see [`tsconfig.json`](./tsconfig.json)) — a lenient starting
+`strict: false` (see [`tsconfig.json`](./tsconfig.json)) - a lenient starting
 point; tighten it incrementally. Test files (`*.test.ts(x)`, `setupTests.ts`)
 are excluded from the typecheck until a test runner is wired up.
 
@@ -172,7 +172,7 @@ The UI is styled with [Tailwind CSS](https://tailwindcss.com/). Vite runs Tailwi
 
 ## Localization
 
-The app ships in English and Vietnamese. There is no i18n library — the setup
+The app ships in English and Vietnamese. There is no i18n library - the setup
 is a small React context in [`src/i18n/`](./src/i18n/):
 
 - [`translations.ts`](./src/i18n/translations.ts) holds one flat dictionary per
@@ -195,7 +195,7 @@ which persists the choice.
 
 1. Add the language to `LANGUAGES` in [`src/i18n/index.tsx`](./src/i18n/index.tsx).
 2. Add its dictionary to `dictionaries` there.
-3. Copy the keys from `en` and translate the values — TypeScript flags anything
+3. Copy the keys from `en` and translate the values - TypeScript flags anything
    missing.
 
 `describeRoomError` in [`src/lib/roomCode.ts`](./src/lib/roomCode.ts) takes the

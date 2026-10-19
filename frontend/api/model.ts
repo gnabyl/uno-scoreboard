@@ -12,7 +12,7 @@ export default async function handler(req: any, res: any) {
 
   try {
     // Mint a short-lived read delegation, then presign the GET URL. Note:
-    // `getDownloadUrl` does NOT sign — it only appends ?download=1, so we use
+    // `getDownloadUrl` does NOT sign - it only appends ?download=1, so we use
     // issueSignedToken + presignUrl for private blobs.
     const signedToken = await issueSignedToken({
       token,

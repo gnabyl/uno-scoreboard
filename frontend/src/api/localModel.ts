@@ -166,7 +166,7 @@ function getSession() {
 
 /**
  * Starts loading the ONNX model immediately (rather than waiting for the
- * first scan). Safe to call multiple times — the session is cached.
+ * first scan). Safe to call multiple times - the session is cached.
  * Resolves once the session is ready, or rejects if loading failed.
  */
 export function preloadModel() {
@@ -250,7 +250,7 @@ export async function detectCards(file: Blob): Promise<DetectionResult> {
     }
 
     // Sort by confidence for stable UI ordering. The ONNX graph already
-    // applies per-class NMS, so overlapping cards are kept — each detection
+    // applies per-class NMS, so overlapping cards are kept - each detection
     // is one full-card box.
     detections.sort((a, b) => b.conf - a.conf);
 

@@ -47,7 +47,7 @@ export function detectLanguage(): Language {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (isLanguage(stored)) return stored;
   } catch {
-    // localStorage can be unavailable (private mode, blocked cookies) — ignore.
+    // localStorage can be unavailable (private mode, blocked cookies) - ignore.
   }
 
   const preferred = navigator.languages?.length ? navigator.languages : [navigator.language];
@@ -123,7 +123,7 @@ export function useI18n(): I18nContextValue {
   return useContext(I18nContext);
 }
 
-/** The translate function alone — the common case in components. */
+/** The translate function alone - the common case in components. */
 export function useTranslation(): TranslateFn {
   return useContext(I18nContext).t;
 }

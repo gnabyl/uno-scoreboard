@@ -5,7 +5,7 @@ import { LANGUAGES, useI18n, type Language } from '../i18n';
  *
  * The offset lines the switcher up with the `+ New round` button in the room
  * view: that button sits 40px above the board's bottom edge (`mb-10`), which in
- * turn clears the page padding (16px, or 24px from `sm`) — hence 56px / 64px.
+ * turn clears the page padding (16px, or 24px from `sm`) - hence 56px / 64px.
  * It also keeps the picker above the fixed LogPanel bar at the very bottom.
  * Language names stay in their own language (e.g. "Tiếng Việt") so people can
  * find their choice regardless of the currently active language.

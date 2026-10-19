@@ -58,7 +58,6 @@ export default function LandingPage() {
           <h1 className="m-0 text-2xl font-extrabold tracking-[-0.5px] text-white sm:text-[30px]">
             {t('app.title')}
           </h1>
-          <p className="mt-1 text-xs text-muted sm:text-sm">{t('landing.tagline')}</p>
         </div>
       </header>
 

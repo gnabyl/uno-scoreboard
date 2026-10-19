@@ -310,7 +310,7 @@ export async function setScore(
 }
 
 /**
- * Subscribes to room version changes. `onVersion(null)` means "refetch now" —
+ * Subscribes to room version changes. `onVersion(null)` means "refetch now" -
  * emitted on subscribe so a reconnect cannot leave the UI stale.
  */
 export function subscribeToRoom(

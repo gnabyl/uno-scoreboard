@@ -46,9 +46,9 @@ python train.py --epochs 100 --batch 16 --workers 2 --export
 
 ## From scratch vs fine-tune vs resume
 
-- **From scratch** — `python train.py --model yolov8n.pt --epochs 100`
-- **Fine-tune** on new data — `python train.py --model runs/uno_flip-X/weights/best.pt --epochs 50`
-- **Resume** an interrupted run — `python train.py --epochs 100 --resume`
+- **From scratch** - `python train.py --model yolov8n.pt --epochs 100`
+- **Fine-tune** on new data - `python train.py --model runs/uno_flip-X/weights/best.pt --epochs 50`
+- **Resume** an interrupted run - `python train.py --epochs 100 --resume`
 
 `--resume` restores optimizer/epoch state and continues in the same run dir;
 fine-tuning starts a fresh run initialized from the checkpoint weights.
@@ -58,10 +58,10 @@ fine-tuning starts a fresh run initialized from the checkpoint weights.
 Runs are written to `train/runs/uno_flip/` (auto-suffixed `-2`, `-3`, …).
 Each run contains:
 
-- `weights/best.pt` — best checkpoint (use this)
-- `weights/last.pt` — resumable checkpoint
-- `weights/best.onnx` — ONNX export (when `--export`)
-- `results.csv` / `results.png` — metrics per epoch
+- `weights/best.pt` - best checkpoint (use this)
+- `weights/last.pt` - resumable checkpoint
+- `weights/best.onnx` - ONNX export (when `--export`)
+- `results.csv` / `results.png` - metrics per epoch
 - `confusion_matrix.png`, `F1_curve.png`, `PR_curve.png`
 
 ## Model for the frontend
@@ -81,5 +81,5 @@ Copy-Item train\runs\uno_flip-X\weights\best.onnx frontend\public\model\uno-flip
 ## Notes
 
 - `data.yaml` uses relative paths, so `train.py` chdirs into `data/` first.
-- Windows: PyPI `torch` is CPU-only — install the CUDA build from
+- Windows: PyPI `torch` is CPU-only - install the CUDA build from
   `https://download.pytorch.org/whl/cu126`.

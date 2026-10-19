@@ -9,7 +9,7 @@ export function parseRoomCode(input: unknown): string {
     const segments = url.pathname.split('/').filter(Boolean);
     if (segments.length > 0) return segments[segments.length - 1];
   } catch {
-    // not an absolute URL — parse it as a bare code or path below
+    // not an absolute URL - parse it as a bare code or path below
   }
 
   const segments = raw.split(/[/?#]/).filter(Boolean);

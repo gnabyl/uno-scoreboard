@@ -21,10 +21,10 @@ const IS_TOUCH = (() => {
 })();
 
 const PLAYER_COLORS = [
-  'before:bg-brand-red',
-  'before:bg-brand-orange',
-  'before:bg-brand-teal',
-  'before:bg-brand-blue',
+  'bg-brand-red',
+  'bg-brand-orange',
+  'bg-brand-teal',
+  'bg-brand-blue',
 ];
 
 const SCORE_FIELD =
@@ -107,7 +107,7 @@ function ScoreCell({ value, label, onCommit, busy }: ScoreCellProps) {
       type="number"
       step="1"
       inputMode="numeric"
-      placeholder="—"
+      placeholder="-"
       aria-label={label}
       value={draft}
       disabled={busy}
@@ -463,7 +463,7 @@ export default function RoomBoard({
                 return (
                   <li
                     key={p.id}
-                    className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold ${winner
+                    className={`flex w-fit max-w-full items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold ${winner
                         ? 'border-transparent bg-[rgba(42,157,143,1)] text-white'
                         : 'border-edge bg-raised text-fg'
                       }`}
@@ -472,14 +472,10 @@ export default function RoomBoard({
                       className={`h-2.5 w-2.5 shrink-0 rounded-full ${PLAYER_COLORS[i % 4]}`}
                       aria-hidden="true"
                     />
-                    <span className="max-w-[96px] truncate">{p.name}</span>
-                    {p.id === me ? (
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-accent">
-                        {t('board.you')}
-                      </span>
-                    ) : (
+                    <span className="min-w-0 max-w-[10rem] truncate">{p.name}</span>
+                    {p.id !== me && (
                       <button
-                        className="rounded border-none bg-transparent p-0 text-base leading-none text-faint opacity-70 transition hover:text-[#ff6b6b]"
+                        className="shrink-0 rounded border-none bg-transparent p-0 text-sm leading-none text-faint opacity-70 transition hover:text-[#ff6b6b]"
                         title={t('board.removePlayer', { name: p.name })}
                         aria-label={t('board.removePlayer', { name: p.name })}
                         disabled={busy}
@@ -488,12 +484,21 @@ export default function RoomBoard({
                         ×
                       </button>
                     )}
-                    <span className={total < 0 && !winner ? 'text-[#ff4d4d]' : ''}>{total}</span>
-                    {winner && (
-                      <span className="text-[14px]" aria-label={t('board.leadingPlayer')}>
-                        👑
-                      </span>
-                    )}
+                    <span
+                      className={`w-9 shrink-0 text-right tabular-nums ${
+                        total < 0 && !winner ? 'text-[#ff4d4d]' : ''
+                      }`}
+                    >
+                      {total}
+                    </span>
+                    <span
+                      className={`shrink-0 text-center text-[14px] ${
+                        winner ? 'inline-block w-4' : 'hidden'
+                      }`}
+                      aria-label={winner ? t('board.leadingPlayer') : undefined}
+                    >
+                      {winner ? '👑' : null}
+                    </span>
                   </li>
                 );
               })}
