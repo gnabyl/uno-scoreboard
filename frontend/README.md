@@ -39,12 +39,12 @@ write tables directly.
   writes per room. A stale `base_version` raises `PT409`; retrying the same
   `request_id` is replayed instead of rejected.
 - Clients subscribe to `rooms.version` over Realtime and refetch
-  [`get_room`](./src/api/rooms.ts) on every bump, so a dropped event only
+  [`get_room`](./src/api-helper/rooms.ts) on every bump, so a dropped event only
   delays a refresh and never loses state.
 - A blank score is `NULL`. Totals and round winners stay derived on the client;
   nothing aggregate is stored.
-- The API layer is [`src/api/rooms.ts`](./src/api/rooms.ts) with the client in
-  [`src/api/supabase.ts`](./src/api/supabase.ts).
+- The API layer is [`src/api-helper/rooms.ts`](./src/api-helper/rooms.ts) with the client in
+  [`src/api-helper/supabase.ts`](./src/api-helper/supabase.ts).
 
 ### Conflict policy
 

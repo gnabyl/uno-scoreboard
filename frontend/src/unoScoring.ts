@@ -3,7 +3,7 @@
 //   Skip / Skip All / Reverse / Flip / Draw One / Draw Five -> 20 points
 //   Wild / Wild Draw Two / Wild Draw Until -> 50 points
 //
-// Card names come from the in-browser detector (src/api/localModel.js) as
+// Card names come from the in-browser detector (src/api-helper/localModel.ts) as
 // class names like "7", "skip", "wild_color", "draw_five". Matching below is
 // deliberately tolerant (hyphens, spaces, colour prefixes, "+2", etc.).
 

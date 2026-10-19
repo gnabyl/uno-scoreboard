@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createRoom, normalizeRoomCode } from '../api/rooms';
+import { createRoom, normalizeRoomCode } from '../api-helper/rooms';
 import { describeRoomError, parseRoomCode } from '../lib/roomCode';
 import { useTranslation } from '../i18n';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';

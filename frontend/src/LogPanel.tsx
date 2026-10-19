@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { clear, getEntries, subscribe } from './api/debugLog';
+import { clear, getEntries, subscribe } from './api-helper/debugLog';
 import { useTranslation } from './i18n';
 
 export default function LogPanel() {

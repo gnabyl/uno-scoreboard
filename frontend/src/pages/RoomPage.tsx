@@ -6,7 +6,7 @@ import {
   normalizeRoomCode,
   subscribeToRoom,
   type RoomSnapshot,
-} from '../api/rooms';
+} from '../api-helper/rooms';
 import RoomBoard from '../RoomBoard';
 import { describeRoomError } from '../lib/roomCode';
 import { useTranslation } from '../i18n';
