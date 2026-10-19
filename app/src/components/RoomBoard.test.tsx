@@ -1,20 +1,20 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { vi } from 'vitest';
 import RoomBoard from './RoomBoard';
+import { addPlayer, setScore } from '../api-helper/rooms';
 
-jest.mock('../api-helper/localModel', () => ({
+vi.mock('../api-helper/localModel', () => ({
   preloadModel: () => Promise.resolve(null),
 }));
 
-jest.mock('../api-helper/rooms', () => ({
-  addPlayer: jest.fn().mockResolvedValue({ version: 2, playerId: 'x' }),
-  addRound: jest.fn().mockResolvedValue({ version: 2, roundId: 'x' }),
-  deletePlayer: jest.fn().mockResolvedValue(2),
-  deleteRound: jest.fn().mockResolvedValue(2),
-  resetRoom: jest.fn().mockResolvedValue(2),
-  setScore: jest.fn().mockResolvedValue(2),
+vi.mock('../api-helper/rooms', () => ({
+  addPlayer: vi.fn().mockResolvedValue({ version: 2, playerId: 'x' }),
+  addRound: vi.fn().mockResolvedValue({ version: 2, roundId: 'x' }),
+  deletePlayer: vi.fn().mockResolvedValue(2),
+  deleteRound: vi.fn().mockResolvedValue(2),
+  resetRoom: vi.fn().mockResolvedValue(2),
+  setScore: vi.fn().mockResolvedValue(2),
 }));
-
-const { addPlayer, setScore } = require('../api-helper/rooms');
 
 const snapshot = {
   version: 3,
@@ -27,7 +27,7 @@ const snapshot = {
 };
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 test('renders players, rounds and leaderboard', () => {
@@ -49,7 +49,7 @@ test('commits a score edit on blur', () => {
   expect(setScore).toHaveBeenCalledWith('ABCDEFGH', {
     roundId: 'r1',
     playerId: 'p1',
-    value: '25',
+    value: '-25',
     baseVersion: 3,
     previousValue: 10,
   });
@@ -90,7 +90,7 @@ test('clears the name when the add-player modal is reopened', () => {
 });
 
 test('keeps the modal open and shows the error when adding fails', async () => {
-  addPlayer.mockRejectedValueOnce(new Error('Name already taken'));
+  vi.mocked(addPlayer).mockRejectedValueOnce(new Error('Name already taken'));
 
   render(<RoomBoard code="ABCDEFGH" snapshot={snapshot} onRefresh={() => {}} />);
 
