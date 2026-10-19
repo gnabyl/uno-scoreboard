@@ -468,10 +468,6 @@ export default function RoomBoard({
                   const winnerName = summary.winner
                     ? players.find((p) => p.id === summary.winner)?.name
                     : null;
-                  const anyScored = players.some((p) => {
-                    const v = round.scores[p.id];
-                    return v !== null && v !== undefined && v !== '';
-                  });
                   return (
                     <li
                       key={round.id}
@@ -488,13 +484,11 @@ export default function RoomBoard({
                             {t('board.round', { n: roundIndex + 1 })}
                           </span>
                           <span className="flex min-w-0 items-center gap-2 text-xs">
-                            {winnerName ? (
+                            {winnerName && (
                               <span className="truncate text-[#7dff9a]">
                                 {t('board.roundWon', { name: winnerName })}
                               </span>
-                            ) : anyScored ? (
-                              <span className="text-faint">Σ {summary.sum}</span>
-                            ) : null}
+                            )}
                             <span className="text-faint" aria-hidden="true">
                               {isCollapsed ? '▸' : '▾'}
                             </span>
