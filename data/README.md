@@ -36,63 +36,70 @@ Falls back to the DTD texture dataset when no Pexels API key is set.
 
 ### 3. `compose_hands.py` - generate the dataset
 
-Composites random fanned hands onto backgrounds and writes OBB labels.
+Composites random card arrangements onto backgrounds and writes OBB labels.
+One run produces the whole dataset: 80% fanned hands + 20% lone cards, split
+into train and val, with val kept on background photos training never sees.
 
 ```powershell
-# Fanned hands:
-python compose_hands.py --count 8000
+# 10,000 images -> 9,000 train / 1,000 val
+python compose_hands.py --count 10000 --val-frac 0.1 --warp 25 --workers 4
 
-# Append single-card images (individual cards):
-python compose_hands.py --count 2000 --min-cards 1 --max-cards 1 --start-index 8000 --keep-existing
+# Append 10,000 more (existing files are kept, numbering starts at 20000)
+python compose_hands.py --count 10000 --val-frac 0.1 --warp 25 --start-index 20000
 ```
 
-Key flags:
+The five knobs worth touching:
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--count` | 10 | images to generate |
-| `--side` | both | `light`, `dark`, or `both` |
-| `--min-cards` / `--max-cards` | 2 / 6 | cards per hand |
-| `--min-card-h` / `--max-card-h` | 120 / 720 | card height range (px) |
-| `--min-angle` / `--max-angle` | 6 / 17 | fan spread (degrees) |
-| `--hand-rot` | 180 | whole-hand rotation (any angle; `0` disables) |
-| `--warp` | 0.0 | perspective distortion (fraction of card size) |
-| `--val-frac` | 0.1 | validation split |
-| `--val-bg-frac` | 0.1 | background photos reserved for val only |
+| `--count` | 10 | total images (train + val) |
+| `--val-frac` | 0.1 | share written to val (train gets the rest) |
 | `--workers` | all cores | parallel processes |
+| `--start-index` | none | append mode: first file number; existing files are kept |
+| `--warp` | 0.0 | max camera tilt of the whole hand, in degrees |
+
+Everything else has a working default:
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--side` | both | `light`, `dark`, or `both` |
+| `--min-cards` / `--max-cards` | 2 / 6 | cards per fanned hand (20% of a run is lone cards) |
+| `--min-card-h` / `--max-card-h` | 120 / 720 | card height range (px) |
+| `--min-angle` / `--max-angle` | 30 / 60 | fan spread (degrees) |
+| `--hand-rot` | 180 | whole-hand rotation (any angle; `0` disables) |
 | `--seed` | none | reproducible split |
 | `--draw` | off | also write debug images with label polygons to `hands/debug/` |
-| `--start-index` | 0 | filename offset (for appending) |
-| `--keep-existing` | off | don't clear output dirs (append mode) |
 
 Cards always stay fully inside the frame: a hand that fans past an edge is
 nudged back into view, and a hand too large for the canvas is scaled down
 slightly. Any card that would be sliced by the border is avoided so each label
 is an exact, uncut full-card quad.
 
+Perspective warping applies to the whole hand, not to each card: every card
+goes through the same homography, as if the camera looked at the table from an
+angle. Per-card warps gave each card its own vanishing point, so neighbours
+crossed at angles that cannot happen on a flat table.
+
+`--warp` is the largest tilt in degrees; each image draws a tilt from 0 to that
+value, at a random azimuth. `25` is a realistic phone angle: cards keep their
+true proportions (median aspect 0.64) and keystone slightly (skew median 0.07,
+max 0.31), while the hand as a whole foreshortens the way a camera does. `35`
+is the aggressive option. The hand is re-fitted into the frame after the tilt,
+so cards remain uncut.
+
 ### Validation split
 
-`--val-frac` picks which images are val, and `--val-bg-frac` reserves a slice
-of the background photos that **only val images may use**. Without that, every
-val surface also appears in training (1000 photos over 8000 images), so val
-only measures how well the model fit the synthetic scenes.
+`--val-frac` is the share of each run that goes to val. Val images are
+composited only on background photos held out for them (10% of the photos,
+picked by a fixed seed), so val measures a hand on a surface training never saw
+instead of a reshuffle of a training scene.
 
-- The held-out slice is chosen with a fixed seed, so all generation passes
-  agree on it. Keep `--val-bg-frac` the same across passes.
-- `--val-frac` and `--val-bg-frac` are independent. `--val-frac 0` sends every
-  image to train but still reserves the val photos for a later val pass; pass
-  `--val-bg-frac 0` if that run should use every photo.
-- `--val-bg-frac 0` shares every photo (old behaviour, leaks backgrounds).
-- `0.1` leaves 100 of 1000 photos for val; `0.2` gives val more variety.
-
-To keep all images for training, generate val in its own pass:
-
-```powershell
-python compose_hands.py --count 8000 --val-frac 0
-python compose_hands.py --count 2000 --min-cards 1 --max-cards 1 --start-index 8000 --val-frac 0 --keep-existing
-python compose_hands.py --count 800 --start-index 10000 --val-frac 1 --keep-existing
-python compose_hands.py --count 200 --min-cards 1 --max-cards 1 --start-index 10800 --val-frac 1 --keep-existing
-```
+- The holdout is automatic and stable: every run reserves the same slice, so
+  appending more images never leaks a val surface into train.
+- `--val-frac 0` writes everything to train.
+- Without `--start-index` a run clears the output dirs first. With it, existing
+  files are kept and new ones are numbered from that index; the run refuses to
+  start if the index would overwrite an existing image.
 
 Output: `hands/images/{train,val}/*.png` + `hands/labels/{train,val}/*.txt`,
 plus `data.yaml` and `classes.txt` (18 type-only classes).
