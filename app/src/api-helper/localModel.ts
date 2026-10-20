@@ -11,6 +11,7 @@
 import * as ort from 'onnxruntime-web';
 
 import { log, progress } from './debugLog';
+import { sortByReadingOrder } from '../lib/cardOrdering';
 
 const INPUT_SIZE = 640;
 const DEFAULT_CONFIDENCE = 0.25;
@@ -240,12 +241,13 @@ export async function detectCards(file: Blob): Promise<DetectionResult> {
       });
     }
 
-    // Sort by confidence for stable UI ordering. The ONNX graph already
-    // applies per-class NMS, so overlapping cards are kept - each detection
-    // is one full-card box.
-    detections.sort((a, b) => b.conf - a.conf);
+    // Present cards in reading order (rows top to bottom, cards left to
+    // right) so the scan list matches how they appear in the photo. The ONNX
+    // graph already applies per-class NMS, so overlapping cards are kept -
+    // each detection is one full-card box.
+    const ordered = sortByReadingOrder(detections);
 
-    const annotations = detections.map((det) => ({
+    const annotations = ordered.map((det) => ({
       name: CLASS_NAMES[det.cls] ?? String(det.cls),
       conf: det.conf,
       box: det.box,
