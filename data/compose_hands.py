@@ -3,10 +3,11 @@
 
 Each image picks a random number of cards, a random fan spread angle, a random
 card height, a random background (real photos when available), a whole-hand
-perspective tilt (the camera looking at the table from an angle), and scene
-lighting: a light source that brightens one side of the hand, casts a warm or
+perspective tilt (the camera looking at the table from an angle), scene
+lighting (a light source that brightens one side of the hand, casts a warm or
 cool colour over the cards, and leaves a glossy specular reflection on the
-plastic faces. Cards are drawn left-to-right so each subsequent card overlaps
+plastic faces), and a little camera blur (lens softness plus an occasional
+handheld smear). Cards are drawn left-to-right so each subsequent card overlaps
 the previous one, like a hand of cards.
 
 Every card is kept fully inside the frame: a hand that fans past an edge is
@@ -36,7 +37,7 @@ from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -92,6 +93,10 @@ MAX_FAN_SPREAD = 110.0
 # Share of every run that is a lone card instead of a fan. A lone card teaches
 # the detector what a whole card looks like with nothing overlapping it.
 SINGLE_CARD_FRAC = 0.2
+
+# Share of frames that get camera blur. Most photos stay sharp; blurring every
+# image would just make the whole set softer and teach the model nothing extra.
+BLUR_FRAC = 0.2
 
 # Share of the background photos held out for validation. Val images may only
 # use these, so validation runs on surfaces training never saw.
@@ -582,6 +587,39 @@ def apply_lighting(background, cards):
     return Image.fromarray(np.clip(lit, 0.0, 255.0).astype(np.uint8))
 
 
+def _motion_blur(img, length, angle):
+    """Average a few shifted copies along one direction (handheld smear)."""
+    steps = max(3, int(round(length)))
+    arr = np.asarray(img, dtype=np.float32)
+    pad = steps
+    padded = np.pad(arr, ((pad, pad), (pad, pad), (0, 0)), mode="edge")
+    acc = np.zeros_like(arr)
+    for i in range(steps):
+        t = i - (steps - 1) / 2.0
+        dx = int(round(math.cos(angle) * t))
+        dy = int(round(math.sin(angle) * t))
+        y, x = pad + dy, pad + dx
+        acc += padded[y : y + arr.shape[0], x : x + arr.shape[1]]
+    return Image.fromarray((acc / steps).astype(np.uint8))
+
+
+def _camera_blur(img):
+    """Blur one frame in five, as if the camera missed focus.
+
+    Most photos stay perfectly sharp; a fifth get a little lens softness and,
+    now and then, a short handheld smear. The blur stays small - the cards must
+    remain readable for the labels to keep their meaning - but a mixed set
+    teaches the model to cope with a soft photo instead of only crisp renders.
+    """
+    if random.random() >= BLUR_FRAC:
+        return img
+    img = img.filter(ImageFilter.GaussianBlur(random.uniform(0.6, 1.8)))
+    if random.random() < 0.25:  # a few of the blurred frames also smear
+        length = random.uniform(2.5, 6.0)
+        img = _motion_blur(img, length, random.uniform(0.0, math.pi))
+    return img
+
+
 def draw_boxes(img, anns):
     """Draw annotation quads on a copy for visual review."""
     img = img.copy()
@@ -805,6 +843,7 @@ def make_hand(card_paths, args, weights=None, photos=None, single=False):
     if args.warp > 0 and anns:
         canvas, anns = _warp_hand(canvas, anns, args.warp)
     img = apply_lighting(bg, canvas)
+    img = _camera_blur(img)
     anns = _clip_anns(anns, img.width, img.height)
     return img, anns
 

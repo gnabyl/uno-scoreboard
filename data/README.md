@@ -99,6 +99,15 @@ cards, faint on the table. The highlight is streaked at a random angle and
 size, so a run contains window bands, lamp blobs and tighter flash hotspots.
 No card moves, so the labels stay exact.
 
+### Camera blur
+
+About one frame in five gets a little lens softness: a small Gaussian blur
+(0.6-1.8 px, as if autofocus just missed) and, on a quarter of those, a short
+directional smear from handheld shake. The other four in five stay sharp. The
+blur is deliberately mild so the cards stay readable and the labels remain
+meaningful; it is there to teach the model to cope with a soft photo, not to
+hide the cards.
+
 ### Validation split
 
 `--val-frac` is the share of each run that goes to val. Val images are
