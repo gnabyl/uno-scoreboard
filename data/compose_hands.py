@@ -2,9 +2,9 @@
 """Compose random "hands" of UNO Flip cards as fanned spreads.
 
 Each image picks a random number of cards, a random fan spread angle, a random
-card height, a random background (real photos when available), per-card
-perspective warps, and random lighting (brightness/contrast/color). Cards are
-drawn left-to-right so
+card height, a random background (real photos when available), a whole-hand
+perspective tilt (the camera looking at the table from an angle), and random
+lighting (brightness/contrast/color). Cards are drawn left-to-right so
 each subsequent card overlaps the previous one, like a hand of cards.
 
 Every card is kept fully inside the frame: a hand that fans past an edge is
@@ -85,6 +85,14 @@ MIN_SEP_DEG = 10.0
 # Upper bound on the total fan spread, so the fan never wraps past a full
 # semicircle (large hands with a big per-card gap get clamped to this).
 MAX_FAN_SPREAD = 110.0
+
+# Share of every run that is a lone card instead of a fan. A lone card teaches
+# the detector what a whole card looks like with nothing overlapping it.
+SINGLE_CARD_FRAC = 0.2
+
+# Share of the background photos held out for validation. Val images may only
+# use these, so validation runs on surfaces training never saw.
+VAL_BG_FRAC = 0.1
 
 
 def load_card_paths(side):
@@ -248,75 +256,64 @@ def _solve_perspective(src, dst):
     return [a[i][n] for i in range(n)]
 
 
-def _perspective_ok(src, dst, out_size):
-    """Reject warps that fold or blow up inside the output image.
+def camera_tilt(size, max_tilt, distance=0.8):
+    """Return (pad, coeffs, forward) for a camera looking at the canvas at an angle.
 
-    `dst` is the quad the card actually renders onto. PIL evaluates the
-    inverse map per output pixel, so its denominator must not cross zero
-    anywhere in the frame; if it does, the sprite folds through infinity and
-    renders as a fan of streaks.
+    `max_tilt` is the largest angle (degrees) between the camera axis and the
+    table normal; the actual tilt is drawn uniformly from 0 to it. The camera
+    sits `distance` canvas widths above the table and looks straight down while
+    the canvas is tilted and spun underneath it, so every point shares one
+    vanishing point - exactly like a real photo. A random corner quad (the old
+    approach) can also shear a card into a parallelogram no camera could make.
+
+    `coeffs` is what PIL's PERSPECTIVE transform expects (output -> input) and
+    `forward` maps a padded source point onto the tilted canvas. The result
+    lives in a canvas padded by `pad` on each side, so nothing is clipped when
+    the tilt pushes an edge outward.
+
+    Returns (0, None, None) when warping is disabled (max_tilt <= 0).
     """
-    coeffs = _solve_perspective(dst, src)  # the matrix PIL applies
-    if coeffs is None:
-        return False
-    g, h = coeffs[6], coeffs[7]
-    w, hh = out_size
-    signs = {
-        (g * x + h * y + 1.0) > 0
-        for x, y in ((0, 0), (w, 0), (w, hh), (0, hh))
-    }
-    if len(signs) != 1:
-        return False
-    # Keep the rendered card within a sane size; a near-degenerate warp can
-    # stay fold-free and still stretch the sprite into an unreadable blob.
-    src_area = poly_area(src)
-    dst_area = poly_area(dst)
-    if not (0.45 * src_area <= dst_area <= 2.0 * src_area):
-        return False
-    for i in range(4):
-        sx, sy = src[i - 1], src[i]
-        dx, dy = dst[i - 1], dst[i]
-        src_len = math.hypot(sx[0] - sy[0], sx[1] - sy[1])
-        ratio = math.hypot(dx[0] - dy[0], dx[1] - dy[1]) / src_len
-        if ratio < 0.45 or ratio > 2.2:
-            return False
-    return True
-
-
-def random_perspective(size, max_shift):
-    """Return (pad, coeffs, forward) for a random perspective warp.
-
-    `coeffs` is what PIL's PERSPECTIVE transform expects: it maps output
-    pixels back to input pixels. `forward` is the opposite direction, so it
-    maps a point from the padded source image onto the warped card - which is
-    what annotation quads need. Returning the inverse of the matrix PIL applies
-    (rather than a second random warp) keeps the rendered card and its label
-    inside the bounds checked above.
-
-    Returns (0, None, None) when the warp is disabled (max_shift <= 0).
-    """
-    if max_shift <= 0:
+    if max_tilt <= 0:
         return 0, None, None
     w, h = size
-    pad = max(2, round(max_shift * max(w, h)))
+    theta = math.radians(random.uniform(0.0, max_tilt))
+    phi = random.uniform(0.0, 2.0 * math.pi)
+    d = distance * max(w, h)
+    cos_t, sin_t = math.cos(theta), math.sin(theta)
+    cos_p, sin_p = math.cos(phi), math.sin(phi)
+
+    def project(x, y):
+        # Tilt the table about its vertical axis, spin it about its normal,
+        # then project from a pinhole at (0, 0, d) looking down.
+        x_tilted = cos_t * x
+        z = -sin_t * x
+        x_cam = cos_p * x_tilted - sin_p * y
+        y_cam = sin_p * x_tilted + cos_p * y
+        depth = d - z
+        return d * x_cam / depth, d * y_cam / depth
+
+    quad = [
+        project(-w / 2.0, -h / 2.0),
+        project(w / 2.0, -h / 2.0),
+        project(w / 2.0, h / 2.0),
+        project(-w / 2.0, h / 2.0),
+    ]
+    xs = [x for x, _ in quad]
+    ys = [y for _, y in quad]
+    pad = max(2, math.ceil(max(max(xs) - min(xs) - w, max(ys) - min(ys) - h) / 2) + 1)
+    shift_x = pad + w / 2.0 - (max(xs) + min(xs)) / 2.0
+    shift_y = pad + h / 2.0 - (max(ys) + min(ys)) / 2.0
+    dst = [(x + shift_x, y + shift_y) for x, y in quad]
     src = [(pad, pad), (pad + w, pad), (pad + w, pad + h), (pad, pad + h)]
-    out_size = (w + 2 * pad, h + 2 * pad)
-    for _ in range(8):
-        dst = [
-            (x + random.uniform(-pad, pad), y + random.uniform(-pad, pad))
-            for x, y in src
-        ]
-        if _perspective_ok(src, dst, out_size):
-            return (
-                pad,
-                _solve_perspective(dst, src),  # what PIL applies
-                _solve_perspective(src, dst),  # padded source -> rendered card
-            )
-    return 0, None, None  # every draw folded: skip the warp for this card
+    return (
+        pad,
+        _solve_perspective(dst, src),  # what PIL applies
+        _solve_perspective(src, dst),  # padded source -> tilted canvas
+    )
 
 
 def apply_perspective(img, pad, coeffs):
-    """Apply a perspective warp (from random_perspective) to an image."""
+    """Apply a camera tilt (from camera_tilt) to an image."""
     if coeffs is None:
         return img
     w, h = img.size
@@ -513,6 +510,41 @@ def _fit_hand(quads, w, h, margin=12.0):
     return 1.0, tx, ty
 
 
+def _warp_hand(canvas, anns, max_tilt):
+    """Apply one camera tilt to the whole rendered hand.
+
+    Simulates looking at the table from an angle: every card goes through the
+    same homography, so they keep one common vanishing point and the fan's
+    overlaps stay as laid out. `canvas` and `anns` share a coordinate system,
+    so the warp moves pixels and label quads together. A tilt can push a corner
+    past the border, hence the re-fit into the frame.
+    """
+    pad, coeffs, fwd = camera_tilt(canvas.size, max_tilt)
+    if coeffs is None:
+        return canvas, anns
+
+    warped = apply_perspective(canvas, pad, coeffs)
+    moved = [
+        (cls_id, [apply_homography((x + pad, y + pad), fwd) for x, y in quad])
+        for cls_id, quad in anns
+    ]
+    scale, tx, ty = _fit_hand([quad for _, quad in moved], CANVAS_W, CANVAS_H)
+    if scale != 1.0:
+        warped = warped.resize(
+            (
+                max(1, round(warped.width * scale)),
+                max(1, round(warped.height * scale)),
+            ),
+            Image.Resampling.BILINEAR,
+        )
+    frame = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
+    frame.paste(warped, (round(tx), round(ty)), warped)
+    return frame, [
+        (cls_id, [(x * scale + tx, y * scale + ty) for x, y in quad])
+        for cls_id, quad in moved
+    ]
+
+
 def _clip_anns(anns, w, h, min_vis=0.5):
     """Clip annotation quads to the canvas and drop mostly-hidden cards.
 
@@ -550,8 +582,8 @@ def write_data_yaml():
     (HERE / "data.yaml").write_text("\n".join(lines) + "\n")
 
 
-def make_hand(card_paths, args, weights=None, photos=None):
-    n = random.randint(args.min_cards, args.max_cards)
+def make_hand(card_paths, args, weights=None, photos=None, single=False):
+    n = 1 if single else random.randint(args.min_cards, args.max_cards)
     if weights is None:
         weights = card_weights(card_paths)
     # Weighted so the class mix matches a real UNO Flip deck (see DECK_FACES).
@@ -580,21 +612,15 @@ def make_hand(card_paths, args, weights=None, photos=None):
         scale = card_h / h
         card = card.resize((round(w * scale), round(card_h)), Image.Resampling.BILINEAR)
 
-        # The label is the whole card. Track its four corners through the same
-        # perspective warp and rotation that the pixels go through, so the
-        # polygon stays tight around the rotated card instead of growing into
-        # an axis-aligned box (which doubles in area at 45 degrees and makes
-        # neighbouring cards in a fan overlap).
-        pad, coeffs, fwd = random_perspective(card.size, args.warp)
+        # The label is the whole card, tracked through the rotation below as a
+        # quad: an axis-aligned box doubles in area at 45 degrees and makes
+        # neighbouring cards in a fan look like they overlap.
         corners = [
-            (pad, pad),
-            (pad + card.width, pad),
-            (pad + card.width, pad + card.height),
-            (pad, pad + card.height),
+            (0, 0),
+            (card.width, 0),
+            (card.width, card.height),
+            (0, card.height),
         ]
-        card = apply_perspective(card, pad, coeffs)
-        if fwd is not None:
-            corners = [apply_homography(p, fwd) for p in corners]
 
         t = 0.5 if n == 1 else i / (n - 1)
         angle = (t - 0.5) * spread + random.uniform(-2.5, 2.5)
@@ -655,6 +681,11 @@ def make_hand(card_paths, args, weights=None, photos=None):
             anns.append((CLASS_ID[cls], quad))
 
     bg = background.convert("RGBA")
+    # One perspective warp for the whole hand: cards lying on a table share the
+    # camera angle, so they must share one homography. Warping each card on its
+    # own gave every card a different vanishing point and made neighbours cross.
+    if args.warp > 0 and anns:
+        canvas, anns = _warp_hand(canvas, anns, args.warp)
     bg.alpha_composite(canvas)
     img = apply_lighting(bg.convert("RGB"))
     anns = _clip_anns(anns, img.width, img.height)
@@ -664,7 +695,7 @@ def make_hand(card_paths, args, weights=None, photos=None):
 def _generate_task(task):
     """Generate and save one hand. Runs in a worker process."""
     (
-        k,
+        idx,
         seed,
         card_paths,
         weights,
@@ -672,13 +703,12 @@ def _generate_task(task):
         img_dirs,
         lbl_dirs,
         split,
+        single,
         debug_dir,
-        start_index,
         bg_pools,
     ) = task
     random.seed(seed)
-    img, anns = make_hand(card_paths, params, weights, bg_pools[split])
-    idx = start_index + k
+    img, anns = make_hand(card_paths, params, weights, bg_pools[split], single)
     img.save(img_dirs[split] / f"hand_{idx:05d}.png")
     with open(lbl_dirs[split] / f"hand_{idx:05d}.txt", "w") as f:
         iw, ih = img.size
@@ -690,7 +720,7 @@ def _generate_task(task):
             f.write(f"{cls_id} " + " ".join(f"{v:.6f}" for v in coords) + "\n")
     if debug_dir is not None:
         draw_boxes(img, anns).save(debug_dir / f"hand_{idx:05d}.png")
-    return k
+    return idx
 
 
 def _run_tasks(tasks, workers, count):
@@ -725,19 +755,22 @@ def _print_progress(done, total, t0):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--count", type=int, default=10, help="images to generate")
+    ap.add_argument("--count", type=int, default=10, help="total images (train + val)")
     ap.add_argument("--side", default="both", choices=["light", "dark", "both"])
     ap.add_argument("--min-cards", type=int, default=2)
     ap.add_argument("--max-cards", type=int, default=6)
-    ap.add_argument("--min-angle", type=float, default=6)
-    ap.add_argument("--max-angle", type=float, default=17)
+    ap.add_argument("--min-angle", type=float, default=30)
+    ap.add_argument("--max-angle", type=float, default=60)
     ap.add_argument("--min-card-h", type=float, default=120)
     ap.add_argument("--max-card-h", type=float, default=720)
     ap.add_argument(
         "--warp",
         type=float,
         default=0.0,
-        help="max perspective corner shift as a fraction of card size (0 disables)",
+        help=(
+            "max camera tilt in degrees (0 disables); simulates looking at "
+            "the table from an angle"
+        ),
     )
     ap.add_argument(
         "--hand-rot",
@@ -758,16 +791,7 @@ def main():
         "--val-frac",
         type=float,
         default=0.1,
-        help="fraction of images held out for validation",
-    )
-    ap.add_argument(
-        "--val-bg-frac",
-        type=float,
-        default=0.1,
-        help=(
-            "fraction of background photos reserved for validation images, so val "
-            "never reuses a surface seen in training (0 = share every photo)"
-        ),
+        help="fraction of the run written to val (train gets the rest)",
     )
     ap.add_argument(
         "--workers",
@@ -779,13 +803,8 @@ def main():
     ap.add_argument(
         "--start-index",
         type=int,
-        default=0,
-        help="numbering offset for output files (use with --keep-existing to append)",
-    )
-    ap.add_argument(
-        "--keep-existing",
-        action="store_true",
-        help="do not clear existing files in the output dirs (append mode)",
+        default=None,
+        help="append mode: first file number (existing images are kept)",
     )
     args = ap.parse_args()
 
@@ -794,12 +813,30 @@ def main():
     out_dir = Path(args.out) if args.out else HERE / "hands"
     img_dirs = {s: out_dir / "images" / s for s in ("train", "val")}
     lbl_dirs = {s: out_dir / "labels" / s for s in ("train", "val")}
+
+    # Passing --start-index means "append": existing files stay and new ones
+    # are numbered after them. Without it the run replaces the output, so a
+    # second run cannot silently mix two generations.
+    append = args.start_index is not None
+    start = args.start_index or 0
     for d in list(img_dirs.values()) + list(lbl_dirs.values()):
         d.mkdir(parents=True, exist_ok=True)
-        if not args.keep_existing:
+        if not append:
             for old in d.iterdir():
                 if old.is_file():
                     old.unlink()  # remove stale outputs from previous runs
+
+    if append:
+        existing = [
+            int(p.stem.rsplit("_", 1)[1])
+            for d in img_dirs.values()
+            for p in d.glob("hand_*.png")
+        ]
+        if existing and start <= max(existing):
+            raise SystemExit(
+                f"--start-index {start} would overwrite images up to "
+                f"hand_{max(existing):05d}; use --start-index {max(existing) + 1}"
+            )
 
     with open(HERE / "classes.txt", "w") as f:
         f.write("\n".join(CLASSES) + "\n")
@@ -813,19 +850,29 @@ def main():
 
     card_paths = load_card_paths(args.side)
     weights = card_weights(card_paths)
-    train_bg, val_bg = _split_backgrounds(args.val_bg_frac)
+    train_bg, val_bg = _split_backgrounds(VAL_BG_FRAC)
     bg_pools = {"train": train_bg, "val": val_bg}
-    held_out = len(val_bg) < len(train_bg)
-    if args.val_bg_frac > 0 and not held_out:
-        print("warning: no background photo held out for val (--val-bg-frac)")
+
+    n_val = round(args.count * args.val_frac) if args.val_frac > 0 else 0
+    n_train = args.count - n_val
+
+    # One run covers the whole recipe: fans and lone cards, both splits, val on
+    # held-out backgrounds. Shuffle the lone cards so a split does not end with
+    # a long run of them.
+    rng = random.Random(args.seed)
+    plan = []
+    for split, n in (("train", n_train), ("val", n_val)):
+        singles = round(n * SINGLE_CARD_FRAC)
+        flags = [True] * singles + [False] * (n - singles)
+        rng.shuffle(flags)
+        plan.extend((split, single) for single in flags)
 
     tasks = []
-    for k in range(args.count):
+    for k, (split, single) in enumerate(plan):
         seed = None if args.seed is None else args.seed + k
-        split = "val" if random.Random(seed).random() < args.val_frac else "train"
         tasks.append(
             (
-                k,
+                start + k,
                 seed,
                 card_paths,
                 weights,
@@ -833,24 +880,28 @@ def main():
                 img_dirs,
                 lbl_dirs,
                 split,
+                single,
                 debug_dir,
-                args.start_index,
                 bg_pools,
             )
         )
 
-    n_val = sum(1 for t in tasks if t[7] == "val")
-    print(f"images:    {len(tasks) - n_val} train / {n_val} val (--val-frac {args.val_frac:g})")
+    n_single = sum(1 for _, single in plan if single)
+    print(
+        f"images:      {n_train} train / {n_val} val "
+        f"(--val-frac {args.val_frac:g})"
+    )
+    print(f"card counts: {n_single} single / {len(plan) - n_single} hands")
     print(
         f"backgrounds: {len(train_bg)} train / {len(val_bg)} val "
-        f"(--val-bg-frac {args.val_bg_frac:g})"
+        f"({VAL_BG_FRAC:g} held out for val)"
     )
-    if n_val == 0 and held_out:
-        print("  val photos are reserved for a later --val-frac 1 pass")
+    if append:
+        print(f"appending:   starting at hand_{start:05d}")
 
-    _run_tasks(tasks, args.workers, args.count)
+    _run_tasks(tasks, args.workers, len(plan))
 
-    print(f"{args.count} hands -> {out_dir}")
+    print(f"{len(plan)} images -> {out_dir}")
 
 
 if __name__ == "__main__":
