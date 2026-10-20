@@ -5,8 +5,16 @@ Each image picks a random number of cards, a random fan spread angle, a random
 card height, a random background (real photos when available), per-card
 perspective warps, and random lighting (brightness/contrast/color). Cards are
 drawn left-to-right so
-each subsequent card overlaps the previous one, like a hand of cards. YOLO
-labels are written for each card's top-left corner region.
+each subsequent card overlaps the previous one, like a hand of cards.
+
+Every card is kept fully inside the frame: a hand that fans past an edge is
+nudged back into view, and a hand too large for the canvas is scaled down
+slightly. A card sliced by the border would get a clipped label and teach the
+model that half a card is a whole card, so the generator never lets that happen.
+
+Labels are Ultralytics OBB (oriented bounding box) polygons: one rotated quad
+per card, written as `class x1 y1 x2 y2 x3 y3 x4 y4` in normalized coordinates
+and ordered around the card.
 
 Usage:
     python compose_hands.py --count 100
@@ -20,6 +28,7 @@ import random
 import re
 import sys
 import time
+from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 from functools import lru_cache
 from pathlib import Path
@@ -91,6 +100,38 @@ def load_card_paths(side):
     return paths
 
 
+# Faces per class in a real UNO Flip deck: 108 double-sided cards = 216 faces.
+# Per colour there are two each of 1-9, two Reverse, two Skip/Skip Everyone,
+# two Draw One/Draw Five, and one Flip (25 cards). The 8 wilds are four
+# standard Wild (wild on both sides) and four penalty Wilds (Draw Two on the
+# light side, Draw Until on the dark side).
+DECK_FACES = {
+    **{str(n): 16 for n in range(1, 10)},
+    "reverse": 16,
+    "flip": 8,
+    "skip": 8,
+    "skip_all": 8,
+    "draw_one": 8,
+    "draw_five": 8,
+    "wild_color": 8,
+    "wild_draw_two": 4,
+    "wild_draw_until": 4,
+}
+
+
+def card_weights(paths):
+    """Draw weight per sprite so the class mix matches a real deck.
+
+    Sampling uniformly over sprite files over-weights classes that happen to
+    have more artwork (four colours x two sides) and gives a wild 1/108 when it
+    is really 8/216 of the faces. Each class gets its deck share, split evenly
+    across the sprite designs that exist for it.
+    """
+    classes = [class_of_path(p) for p in paths]
+    designs = Counter(classes)
+    return [DECK_FACES.get(c, 1) / designs[c] for c in classes]
+
+
 @lru_cache(maxsize=128)
 def load_sprite(path):
     """Return a cached decoded card sprite (RGBA)."""
@@ -128,6 +169,26 @@ def _photo_paths():
     return _photo_cache
 
 
+def _split_backgrounds(val_frac):
+    """Hold out a stable slice of background photos for validation.
+
+    Val images may only use these photos, so validation measures a hand on an
+    unseen surface instead of a re-shuffle of a scene the model has trained on.
+    The split uses a fixed seed: every generation pass must agree on it, or
+    train and val would share photos again.
+    """
+    photos = sorted(_photo_paths())
+    if not photos or val_frac <= 0:
+        return photos, photos
+    shuffled = photos[:]
+    random.Random(20240101).shuffle(shuffled)
+    n_val = min(len(shuffled) - 1, max(1, round(len(shuffled) * val_frac)))
+    val = sorted(shuffled[:n_val])
+    if not val:  # a single photo cannot be held out
+        return photos, photos
+    return sorted(shuffled[n_val:]), val
+
+
 def _cover_crop(img, w, h):
     """Resize a photo to cover the canvas, then take a random crop."""
     iw, ih = img.size
@@ -138,10 +199,10 @@ def _cover_crop(img, w, h):
     return img.crop((x, y, x + w, y + h))
 
 
-def make_background():
+def make_background(photos=None):
     """Return a random background (a real photo if available, else procedural)."""
     w, h = CANVAS_W, CANVAS_H
-    photos = _photo_paths()
+    photos = _photo_paths() if photos is None else photos
     if photos:
         return _cover_crop(load_bg(random.choice(photos)), w, h)
     mode = random.choice(["solid", "gradient", "noise"])
@@ -187,18 +248,71 @@ def _solve_perspective(src, dst):
     return [a[i][n] for i in range(n)]
 
 
+def _perspective_ok(src, dst, out_size):
+    """Reject warps that fold or blow up inside the output image.
+
+    `dst` is the quad the card actually renders onto. PIL evaluates the
+    inverse map per output pixel, so its denominator must not cross zero
+    anywhere in the frame; if it does, the sprite folds through infinity and
+    renders as a fan of streaks.
+    """
+    coeffs = _solve_perspective(dst, src)  # the matrix PIL applies
+    if coeffs is None:
+        return False
+    g, h = coeffs[6], coeffs[7]
+    w, hh = out_size
+    signs = {
+        (g * x + h * y + 1.0) > 0
+        for x, y in ((0, 0), (w, 0), (w, hh), (0, hh))
+    }
+    if len(signs) != 1:
+        return False
+    # Keep the rendered card within a sane size; a near-degenerate warp can
+    # stay fold-free and still stretch the sprite into an unreadable blob.
+    src_area = poly_area(src)
+    dst_area = poly_area(dst)
+    if not (0.45 * src_area <= dst_area <= 2.0 * src_area):
+        return False
+    for i in range(4):
+        sx, sy = src[i - 1], src[i]
+        dx, dy = dst[i - 1], dst[i]
+        src_len = math.hypot(sx[0] - sy[0], sx[1] - sy[1])
+        ratio = math.hypot(dx[0] - dy[0], dx[1] - dy[1]) / src_len
+        if ratio < 0.45 or ratio > 2.2:
+            return False
+    return True
+
+
 def random_perspective(size, max_shift):
-    """Return (pad, coeffs) for a random perspective warp of an image of `size`."""
+    """Return (pad, coeffs, forward) for a random perspective warp.
+
+    `coeffs` is what PIL's PERSPECTIVE transform expects: it maps output
+    pixels back to input pixels. `forward` is the opposite direction, so it
+    maps a point from the padded source image onto the warped card - which is
+    what annotation quads need. Returning the inverse of the matrix PIL applies
+    (rather than a second random warp) keeps the rendered card and its label
+    inside the bounds checked above.
+
+    Returns (0, None, None) when the warp is disabled (max_shift <= 0).
+    """
     if max_shift <= 0:
-        return 0, None
+        return 0, None, None
     w, h = size
     pad = max(2, round(max_shift * max(w, h)))
     src = [(pad, pad), (pad + w, pad), (pad + w, pad + h), (pad, pad + h)]
-    dst = [
-        (x + random.uniform(-pad, pad), y + random.uniform(-pad, pad))
-        for x, y in src
-    ]
-    return pad, _solve_perspective(src, dst)
+    out_size = (w + 2 * pad, h + 2 * pad)
+    for _ in range(8):
+        dst = [
+            (x + random.uniform(-pad, pad), y + random.uniform(-pad, pad))
+            for x, y in src
+        ]
+        if _perspective_ok(src, dst, out_size):
+            return (
+                pad,
+                _solve_perspective(dst, src),  # what PIL applies
+                _solve_perspective(src, dst),  # padded source -> rendered card
+            )
+    return 0, None, None  # every draw folded: skip the warp for this card
 
 
 def apply_perspective(img, pad, coeffs):
@@ -214,6 +328,137 @@ def apply_perspective(img, pad, coeffs):
     )
 
 
+def apply_homography(point, coeffs):
+    """Map a point through an 8-coefficient perspective transform."""
+    x, y = point
+    a, b, c, d, e, f, g, h = coeffs
+    denom = g * x + h * y + 1.0
+    if abs(denom) < 1e-12:
+        return (x, y)
+    return ((a * x + b * y + c) / denom, (d * x + e * y + f) / denom)
+
+
+def rotate_expanded(img, angle):
+    """Rotate an image counter-clockwise by `angle` and expand to fit.
+
+    Returns (rotated, forward) where `forward` maps a point in the source
+    image to the same point in the rotated image. Mapping the points here
+    instead of relying on Pillow's expand offset keeps annotation quads exact
+    even when the source image has transparent padding around the card.
+    """
+    w, h = img.size
+    theta = math.radians(angle)
+    cos_t, sin_t = math.cos(theta), math.sin(theta)
+    cx, cy = w / 2.0, h / 2.0
+
+    def rotate_point(x, y):
+        dx, dy = x - cx, y - cy
+        return (cos_t * dx + sin_t * dy, -sin_t * dx + cos_t * dy)
+
+    rel = [rotate_point(x, y) for x, y in ((0, 0), (w, 0), (w, h), (0, h))]
+    min_x = min(p[0] for p in rel)
+    min_y = min(p[1] for p in rel)
+    nw = int(math.ceil(max(p[0] for p in rel) - min_x))
+    nh = int(math.ceil(max(p[1] for p in rel) - min_y))
+
+    def forward(x, y):
+        rx, ry = rotate_point(x, y)
+        return (rx - min_x, ry - min_y)
+
+    # Pillow's AFFINE matrix maps destination -> source:
+    #   forward: dst = R (src - c) - min
+    #   inverse: src = R^T (dst + min) + c
+    a, b = cos_t, -sin_t
+    d, e = sin_t, cos_t
+    matrix = [
+        a,
+        b,
+        a * min_x + b * min_y + cx,
+        d,
+        e,
+        d * min_x + e * min_y + cy,
+    ]
+    rotated = img.transform(
+        (nw, nh),
+        Image.Transform.AFFINE,
+        matrix,
+        resample=Image.Resampling.BILINEAR,
+    )
+    return rotated, forward
+
+
+def _card_aligned_quad(corners, points):
+    """Smallest rectangle aligned with the card's own axes bounding `points`.
+
+    Clipping a rotated card against the image frame yields a 3-8 vertex
+    polygon, but OBB labels need exactly four points. Fitting the quad to the
+    card's own axes (rather than a min-area rect at an arbitrary angle) keeps
+    the label's rotation meaningful for later rectification.
+    """
+    ox, oy = corners[0]
+    ux, uy = corners[1][0] - ox, corners[1][1] - oy
+    vx, vy = corners[3][0] - ox, corners[3][1] - oy
+    ulen = math.hypot(ux, uy)
+    vlen = math.hypot(vx, vy)
+    if ulen < 1e-9 or vlen < 1e-9:
+        return None
+    ux, uy = ux / ulen, uy / ulen
+    vx, vy = vx / vlen, vy / vlen
+    us = [((x - ox) * ux + (y - oy) * uy) for x, y in points]
+    vs = [((x - ox) * vx + (y - oy) * vy) for x, y in points]
+    u0, u1, v0, v1 = min(us), max(us), min(vs), max(vs)
+    return [
+        (ox + ux * u + vx * v, oy + uy * u + vy * v)
+        for u, v in ((u0, v0), (u1, v0), (u1, v1), (u0, v1))
+    ]
+
+
+def poly_area(points):
+    """Unsigned area of a polygon (shoelace formula)."""
+    if len(points) < 3:
+        return 0.0
+    total = 0.0
+    for i, (x1, y1) in enumerate(points):
+        x0, y0 = points[i - 1]
+        total += x0 * y1 - x1 * y0
+    return abs(total) / 2.0
+
+
+def clip_polygon(points, width, height):
+    """Clip a polygon to the [0, width] x [0, height] rectangle."""
+    def clip(pts, axis, bound, keep_greater):
+        out = []
+        for i, cur in enumerate(pts):
+            prev = pts[i - 1]
+            cur_in = cur[axis] >= bound if keep_greater else cur[axis] <= bound
+            prev_in = prev[axis] >= bound if keep_greater else prev[axis] <= bound
+            if cur_in != prev_in:
+                denom = cur[axis] - prev[axis]
+                if abs(denom) > 1e-12:
+                    t = (bound - prev[axis]) / denom
+                    out.append(
+                        (
+                            prev[0] + t * (cur[0] - prev[0]),
+                            prev[1] + t * (cur[1] - prev[1]),
+                        )
+                    )
+            if cur_in:
+                out.append(cur)
+        return out
+
+    pts = list(points)
+    for axis, bound, keep_greater in (
+        (0, 0.0, True),
+        (0, float(width), False),
+        (1, 0.0, True),
+        (1, float(height), False),
+    ):
+        if not pts:
+            break
+        pts = clip(pts, axis, bound, keep_greater)
+    return pts
+
+
 def apply_lighting(img):
     """Apply random brightness/contrast/color adjustments."""
     img = ImageEnhance.Brightness(img).enhance(random.uniform(0.65, 1.35))
@@ -223,59 +468,73 @@ def apply_lighting(img):
 
 
 def draw_boxes(img, anns):
-    """Draw annotation boxes on a copy for visual review."""
+    """Draw annotation quads on a copy for visual review."""
     img = img.copy()
     draw = ImageDraw.Draw(img)
-    for _cls_id, x0, y0, x1, y1 in anns:
-        draw.rectangle([x0, y0, x1, y1], outline=(255, 0, 0), width=2)
+    for _cls_id, corners in anns:
+        draw.line(corners + [corners[0]], fill=(255, 0, 0), width=3)
+        for x, y in corners:
+            draw.ellipse([x - 3, y - 3, x + 3, y + 3], fill=(255, 0, 0))
     return img
 
 
-def rotate_hand(img, anns, angle):
-    """Rotate the card canvas in place by `angle` degrees (PIL convention,
-    counter-clockwise about the image centre) and transform annotation boxes.
+def _fit_hand(quads, w, h, margin=12.0):
+    """Transform (scale, tx, ty) that brings the whole hand inside the frame.
 
-    The canvas keeps its size; card pixels rotated past the canvas edge are
-    cropped (realistic partial cards). Annotation boxes are clipped to the
-    canvas, and boxes that fall entirely off-canvas are dropped.
+    A hand that already fits is left untouched (scale 1, no offset), so the
+    usual composition is unchanged. A hand too big for the frame is scaled
+    down about its centre and re-centred, so no card is sliced by an edge.
     """
-    w, h = img.size
-    rotated = img.rotate(angle, resample=Image.Resampling.BILINEAR)
-    theta = math.radians(angle)
-    cos_t, sin_t = math.cos(theta), math.sin(theta)
-    cx, cy = w / 2, h / 2
-    new_anns = []
-    for cls_id, x0, y0, x1, y1 in anns:
-        xs, ys = [], []
-        for x, y in ((x0, y0), (x1, y0), (x0, y1), (x1, y1)):
-            xs.append(cos_t * (x - cx) + sin_t * (y - cy) + cx)
-            ys.append(-sin_t * (x - cx) + cos_t * (y - cy) + cy)
-        nx0, ny0 = min(xs), min(ys)
-        nx1, ny1 = max(xs), max(ys)
-        new_anns.append((cls_id, nx0, ny0, nx1, ny1))
-    return rotated, new_anns
+    left = min(x for corners in quads for x, _ in corners)
+    right = max(x for corners in quads for x, _ in corners)
+    top = min(y for corners in quads for _, y in corners)
+    bottom = max(y for corners in quads for _, y in corners)
+
+    if right - left > w - 2 * margin or bottom - top > h - 2 * margin:
+        # Too big: shrink about the centre and re-centre in the frame.
+        scale = min((w - 2 * margin) / (right - left), (h - 2 * margin) / (bottom - top))
+        return (
+            scale,
+            w / 2.0 - scale * (left + right) / 2.0,
+            h / 2.0 - scale * (top + bottom) / 2.0,
+        )
+
+    # Fits, so only undo any overhang; hands already inside keep their layout.
+    tx = 0.0
+    if left < margin:
+        tx = margin - left
+    elif right > w - margin:
+        tx = w - margin - right
+    ty = 0.0
+    if top < margin:
+        ty = margin - top
+    elif bottom > h - margin:
+        ty = h - margin - bottom
+    return 1.0, tx, ty
 
 
 def _clip_anns(anns, w, h, min_vis=0.5):
-    """Clip boxes to the canvas and drop boxes that fall mostly off-canvas.
+    """Clip annotation quads to the canvas and drop mostly-hidden cards.
 
-    A box that is less than `min_vis` visible (e.g. a corner marker whose card
-    runs off the frame) is dropped instead of leaving a sliver that bounds
-    mostly empty space.
+    A quad that is less than `min_vis` visible (e.g. a card whose centre runs
+    off the frame) is dropped instead of leaving a sliver of a label.
     """
     out = []
-    for cls_id, x0, y0, x1, y1 in anns:
-        orig_w, orig_h = x1 - x0, y1 - y0
-        if orig_w <= 0 or orig_h <= 0:
+    for cls_id, corners in anns:
+        area = poly_area(corners)
+        if area <= 0.0:
             continue
-        cx0, cy0 = max(0.0, x0), max(0.0, y0)
-        cx1, cy1 = min(float(w), x1), min(float(h), y1)
-        if cx1 <= cx0 or cy1 <= cy0:
+        clipped = clip_polygon(corners, w, h)
+        if len(clipped) < 3:
             continue
-        visible = ((cx1 - cx0) * (cy1 - cy0)) / (orig_w * orig_h)
-        if visible < min_vis:
+        if poly_area(clipped) / area < min_vis:
             continue
-        out.append((cls_id, cx0, cy0, cx1, cy1))
+        # OBB labels take exactly four points, so a frame-clipped card is
+        # reduced back to a quad; a fully visible card keeps its original one.
+        quad = clipped if len(clipped) == 4 else _card_aligned_quad(corners, clipped)
+        if quad is None or len(quad) != 4:
+            continue
+        out.append((cls_id, quad))
     return out
 
 
@@ -291,9 +550,12 @@ def write_data_yaml():
     (HERE / "data.yaml").write_text("\n".join(lines) + "\n")
 
 
-def make_hand(card_paths, args):
+def make_hand(card_paths, args, weights=None, photos=None):
     n = random.randint(args.min_cards, args.max_cards)
-    chosen = [random.choice(card_paths) for _ in range(n)]
+    if weights is None:
+        weights = card_weights(card_paths)
+    # Weighted so the class mix matches a real UNO Flip deck (see DECK_FACES).
+    chosen = random.choices(card_paths, weights=weights, k=n)
 
     spread = random.uniform(args.min_angle, args.max_angle)
     # Ensure at least MIN_SEP_DEG between neighbouring cards, so many-card
@@ -304,11 +566,11 @@ def make_hand(card_paths, args):
     pivot = (CANVAS_W / 2, CANVAS_H + random.uniform(120, 380))
     radius = CANVAS_H * random.uniform(0.72, 0.88)
 
-    background = make_background()
-    canvas = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
-    anns = []  # (class_id, x0, y0, x1, y1) in image pixel coords
+    background = make_background(photos)
 
-    # Draw left -> right so each card overlaps the one before it.
+    # Lay the hand out first: card placement has to be known before rendering
+    # so the frame can be shifted to keep the whole hand in view.
+    layout = []
     for i, path in enumerate(chosen):
         card = load_sprite(path)
         w, h = card.size
@@ -318,23 +580,21 @@ def make_hand(card_paths, args):
         scale = card_h / h
         card = card.resize((round(w * scale), round(card_h)), Image.Resampling.BILINEAR)
 
-        # Annotation marker. `--full-card` covers the whole card (one box per
-        # card, avoiding double detection on fully-visible cards whose two
-        # corners show the same number); otherwise only the top-left corner.
-        mw, mh = card.size
-        marker = Image.new("RGBA", (mw, mh), (0, 0, 0, 0))
-        if args.full_card:
-            cw, ch, ox, oy = mw, mh, 0, 0
-        else:
-            cw = max(1, round(mw * args.corner_w))
-            ch = max(1, round(mh * args.corner_h))
-            ox = round(mw * args.corner_x)
-            oy = round(mh * args.corner_y)
-        marker.paste(Image.new("RGBA", (cw, ch), (255, 255, 255, 255)), (ox, oy))
-
-        pad, coeffs = random_perspective(card.size, args.warp)
+        # The label is the whole card. Track its four corners through the same
+        # perspective warp and rotation that the pixels go through, so the
+        # polygon stays tight around the rotated card instead of growing into
+        # an axis-aligned box (which doubles in area at 45 degrees and makes
+        # neighbouring cards in a fan overlap).
+        pad, coeffs, fwd = random_perspective(card.size, args.warp)
+        corners = [
+            (pad, pad),
+            (pad + card.width, pad),
+            (pad + card.width, pad + card.height),
+            (pad, pad + card.height),
+        ]
         card = apply_perspective(card, pad, coeffs)
-        marker = apply_perspective(marker, pad, coeffs)
+        if fwd is not None:
+            corners = [apply_homography(p, fwd) for p in corners]
 
         t = 0.5 if n == 1 else i / (n - 1)
         angle = (t - 0.5) * spread + random.uniform(-2.5, 2.5)
@@ -342,31 +602,59 @@ def make_hand(card_paths, args):
         rad = math.radians(angle)
         cx = pivot[0] + radius * math.sin(rad)
         cy = pivot[1] - radius * math.cos(rad)
+        layout.append([card, corners, angle, cx, cy, cls])
 
-        rotated = card.rotate(-angle, expand=True, resample=Image.Resampling.BILINEAR)
-        rotated_marker = marker.rotate(-angle, expand=True, resample=Image.Resampling.BILINEAR)
+    # Whole-hand rotation, applied to each card: rotating the cards about the
+    # frame centre is the same isometry as rotating a composited layer, but it
+    # keeps the sprites sharp and loses nothing before the fit below.
+    hand_rot = random.uniform(-args.hand_rot, args.hand_rot) if args.hand_rot > 0 else 0.0
+
+    # Render each card, then fit the arrangement inside the frame. Cards are
+    # fanned from a pivot below the frame, so a hand can easily be taller than
+    # the canvas; shrinking it beats letting an edge slice the card faces.
+    rendered = []  # (sprite, (cx, cy), quad, class_id)
+    for card, corners, angle, cx, cy, cls in layout:
+        if hand_rot:
+            theta = math.radians(hand_rot)
+            cos_t, sin_t = math.cos(theta), math.sin(theta)
+            ox, oy = CANVAS_W / 2.0, CANVAS_H / 2.0
+            ux, uy = cx - ox, cy - oy
+            cx = cos_t * ux + sin_t * uy + ox
+            cy = -sin_t * ux + cos_t * uy + oy
+
+        rotated, forward = rotate_expanded(card, hand_rot - angle)
+        left = cx - rotated.width / 2.0
+        top = cy - rotated.height / 2.0
+        quad = []
+        for x, y in corners:
+            fx, fy = forward(x, y)
+            quad.append((fx + left, fy + top))
+        rendered.append((rotated, (cx, cy), quad, cls))
+
+    scale, tx, ty = (1.0, 0.0, 0.0)
+    if rendered:
+        scale, tx, ty = _fit_hand([q for _, _, q, _ in rendered], CANVAS_W, CANVAS_H)
+
+    canvas = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
+    anns = []  # (class_id, [(x, y) * 4]) in image pixel coords
+    # Draw left -> right so each card overlaps the one before it.
+    for rotated, (cx, cy), quad, cls in rendered:
+        if scale != 1.0:
+            rotated = rotated.resize(
+                (
+                    max(1, round(rotated.width * scale)),
+                    max(1, round(rotated.height * scale)),
+                ),
+                Image.Resampling.BILINEAR,
+            )
+        cx, cy = cx * scale + tx, cy * scale + ty
+        quad = [(x * scale + tx, y * scale + ty) for x, y in quad]
         dest = (round(cx - rotated.width / 2), round(cy - rotated.height / 2))
         canvas.alpha_composite(rotated, dest)
-
         if cls is not None:
-            bbox = rotated_marker.getchannel("A").getbbox()
-            if bbox:
-                bx0, by0, bx1, by1 = bbox
-                anns.append(
-                    (
-                        CLASS_ID[cls],
-                        dest[0] + bx0,
-                        dest[1] + by0,
-                        dest[0] + bx1,
-                        dest[1] + by1,
-                    )
-                )
+            anns.append((CLASS_ID[cls], quad))
 
     bg = background.convert("RGBA")
-    if args.hand_rot > 0:
-        canvas, anns = rotate_hand(
-            canvas, anns, random.uniform(-args.hand_rot, args.hand_rot)
-        )
     bg.alpha_composite(canvas)
     img = apply_lighting(bg.convert("RGB"))
     anns = _clip_anns(anns, img.width, img.height)
@@ -379,26 +667,27 @@ def _generate_task(task):
         k,
         seed,
         card_paths,
+        weights,
         params,
         img_dirs,
         lbl_dirs,
-        val_frac,
+        split,
         debug_dir,
         start_index,
+        bg_pools,
     ) = task
     random.seed(seed)
-    img, anns = make_hand(card_paths, params)
-    split = "val" if random.random() < val_frac else "train"
+    img, anns = make_hand(card_paths, params, weights, bg_pools[split])
     idx = start_index + k
     img.save(img_dirs[split] / f"hand_{idx:05d}.png")
     with open(lbl_dirs[split] / f"hand_{idx:05d}.txt", "w") as f:
         iw, ih = img.size
-        for cls_id, x0, y0, x1, y1 in anns:
-            cx = (x0 + x1) / 2 / iw
-            cy = (y0 + y1) / 2 / ih
-            bw = (x1 - x0) / iw
-            bh = (y1 - y0) / ih
-            f.write(f"{cls_id} {cx:.6f} {cy:.6f} {bw:.6f} {bh:.6f}\n")
+        for cls_id, corners in anns:
+            coords = []
+            for x, y in corners:
+                coords.append(min(1.0, max(0.0, x / iw)))
+                coords.append(min(1.0, max(0.0, y / ih)))
+            f.write(f"{cls_id} " + " ".join(f"{v:.6f}" for v in coords) + "\n")
     if debug_dir is not None:
         draw_boxes(img, anns).save(debug_dir / f"hand_{idx:05d}.png")
     return k
@@ -457,34 +746,10 @@ def main():
         help="max whole-hand rotation in degrees (uniform; 180 = any orientation incl. upside-down, 0 disables)",
     )
     ap.add_argument(
-        "--corner-w",
-        type=float,
-        default=0.30,
-        help="top-left corner box width as a fraction of card width",
-    )
-    ap.add_argument(
-        "--corner-h",
-        type=float,
-        default=0.20,
-        help="top-left corner box height as a fraction of card height",
-    )
-    ap.add_argument(
-        "--corner-x",
-        type=float,
-        default=0.06,
-        help="top-left corner box left offset as a fraction of card width",
-    )
-    ap.add_argument(
-        "--corner-y",
-        type=float,
-        default=0.05,
-        help="top-left corner box top offset as a fraction of card height",
-    )
-    ap.add_argument(
         "--full-card",
         action="store_true",
-        help="annotate the whole card (one box per card) instead of just the top-left corner",
-    )
+        help=argparse.SUPPRESS,
+    )  # deprecated: OBB labels always cover the whole card
     ap.add_argument("--seed", type=int, default=None)
     ap.add_argument(
         "--draw", action="store_true", help="also save debug images with boxes"
@@ -494,6 +759,15 @@ def main():
         type=float,
         default=0.1,
         help="fraction of images held out for validation",
+    )
+    ap.add_argument(
+        "--val-bg-frac",
+        type=float,
+        default=0.1,
+        help=(
+            "fraction of background photos reserved for validation images, so val "
+            "never reuses a surface seen in training (0 = share every photo)"
+        ),
     )
     ap.add_argument(
         "--workers",
@@ -538,23 +812,41 @@ def main():
             old.unlink()
 
     card_paths = load_card_paths(args.side)
+    weights = card_weights(card_paths)
+    train_bg, val_bg = _split_backgrounds(args.val_bg_frac)
+    bg_pools = {"train": train_bg, "val": val_bg}
+    held_out = len(val_bg) < len(train_bg)
+    if args.val_bg_frac > 0 and not held_out:
+        print("warning: no background photo held out for val (--val-bg-frac)")
 
     tasks = []
     for k in range(args.count):
         seed = None if args.seed is None else args.seed + k
+        split = "val" if random.Random(seed).random() < args.val_frac else "train"
         tasks.append(
             (
                 k,
                 seed,
                 card_paths,
+                weights,
                 args,
                 img_dirs,
                 lbl_dirs,
-                args.val_frac,
+                split,
                 debug_dir,
                 args.start_index,
+                bg_pools,
             )
         )
+
+    n_val = sum(1 for t in tasks if t[7] == "val")
+    print(f"images:    {len(tasks) - n_val} train / {n_val} val (--val-frac {args.val_frac:g})")
+    print(
+        f"backgrounds: {len(train_bg)} train / {len(val_bg)} val "
+        f"(--val-bg-frac {args.val_bg_frac:g})"
+    )
+    if n_val == 0 and held_out:
+        print("  val photos are reserved for a later --val-frac 1 pass")
 
     _run_tasks(tasks, args.workers, args.count)
 

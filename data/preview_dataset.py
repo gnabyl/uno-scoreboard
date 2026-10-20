@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Draw YOLO labels over existing dataset images for visual review.
+"""Draw OBB labels over existing dataset images for visual review.
 
 Usage:
     python preview_dataset.py --split train --count 10
@@ -32,16 +32,29 @@ def draw_labels(img_path, label_path):
     if label_path.exists():
         for line in label_path.read_text().splitlines():
             parts = line.split()
-            if len(parts) != 5:
+            if len(parts) not in (5, 9):
                 continue
             cls = int(parts[0])
-            cx, cy, w, h = (float(v) for v in parts[1:])
-            x1, y1 = (cx - w / 2) * W, (cy - h / 2) * H
-            x2, y2 = (cx + w / 2) * W, (cy + h / 2) * H
             color = COLORS[cls % len(COLORS)]
-            draw.rectangle([x1, y1, x2, y2], outline=color, width=3)
             name = CLASSES[cls] if cls < len(CLASSES) else str(cls)
-            draw.text((x1 + 2, max(0, y1 - 16)), name, fill=color)
+            if len(parts) == 9:
+                # OBB quad: class x1 y1 x2 y2 x3 y3 x4 y4 (normalized)
+                pts = [
+                    (float(parts[i]) * W, float(parts[i + 1]) * H)
+                    for i in range(1, 9, 2)
+                ]
+                draw.line(pts + [pts[0]], fill=color, width=3)
+                for x, y in pts:
+                    draw.ellipse([x - 3, y - 3, x + 3, y + 3], fill=color)
+                label_at = (pts[0][0] + 2, max(0, pts[0][1] - 16))
+            else:
+                # Legacy axis-aligned box: class cx cy w h (normalized)
+                cx, cy, w, h = (float(v) for v in parts[1:])
+                x1, y1 = (cx - w / 2) * W, (cy - h / 2) * H
+                x2, y2 = (cx + w / 2) * W, (cy + h / 2) * H
+                draw.rectangle([x1, y1, x2, y2], outline=color, width=3)
+                label_at = (x1 + 2, max(0, y1 - 16))
+            draw.text(label_at, name, fill=color)
     return img
 
 
