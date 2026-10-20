@@ -27,6 +27,14 @@ GRID_COLS = 12
 # (stray anti-aliased pixels), not as cards.
 MIN_CARD_PIXELS = 1000
 
+# A scanline needs at least this many foreground pixels to count as part of a
+# card row. Separator rows between rows of cards are (nearly) empty, so this
+# keeps stray compression noise from merging two rows into one band.
+MIN_ROW_FRACTION = 64
+
+# Runs of card rows shorter than this are noise, not a genuine card row.
+MIN_ROW_HEIGHT = 16
+
 # Class name for each card, indexed by [side][row][col] (left-to-right per
 # row). A string is the class name; "" falls back to {side}_r{row}_c{col};
 # None marks a cell that is not a card and is skipped.
@@ -117,6 +125,49 @@ def load_sheet(path):
     return fg, rgba
 
 
+def row_runs(mask):
+    """Return [(y0, y1)] of the card rows.
+
+    Rows are found from the empty separator bands between them instead of by
+    dividing the sheet evenly: rows are not spaced perfectly evenly, so a
+    rounded boundary can clip the bottom of the row above and leave a
+    detached 1px strip at the top of a card. Some rows also touch each other
+    (no separator at all), so any band taller than one card is split into
+    equal card-height rows.
+
+    Returns None unless exactly GRID_ROWS bands are found, so the caller can
+    fall back to an even split.
+    """
+    min_pixels = max(8, mask.shape[1] // MIN_ROW_FRACTION)
+    row_has = mask.sum(axis=1) >= min_pixels
+
+    bands = []
+    start = None
+    for y, v in enumerate(row_has):
+        if v and start is None:
+            start = y
+        elif not v and start is not None:
+            bands.append((start, y - 1))
+            start = None
+    if start is not None:
+        bands.append((start, len(row_has) - 1))
+    bands = [b for b in bands if b[1] - b[0] + 1 >= MIN_ROW_HEIGHT]
+
+    ys = np.where(row_has)[0]
+    if ys.size == 0:
+        return None
+    card_h = (ys.max() - ys.min() + 1) / GRID_ROWS
+
+    out = []
+    for top, bottom in bands:
+        height = bottom - top + 1
+        n = max(1, round(height / card_h))
+        step = height / n
+        for k in range(n):
+            out.append((top + round(k * step), top + round((k + 1) * step) - 1))
+    return out if len(out) == GRID_ROWS else None
+
+
 def column_runs(mask, y0, y1):
     """Return [(x0, x1)] of card columns within a row band."""
     col_has = mask[y0:y1, :].any(axis=0)
@@ -148,19 +199,24 @@ def main():
 
     fg, img = load_sheet(sheet_path)
 
-    ys, xs = np.where(fg)
-    y0, y1 = ys.min(), ys.max()
-    cell_h = (y1 - y0 + 1) / GRID_ROWS
+    rows = row_runs(fg)
+    if rows is None:
+        print("warning: could not detect card rows; falling back to an even split")
+        ys, _ = np.where(fg)
+        y0, y1 = ys.min(), ys.max()
+        cell_h = (y1 - y0 + 1) / GRID_ROWS
+        rows = [
+            (round(y0 + r * cell_h), round(y0 + (r + 1) * cell_h) - 1)
+            for r in range(GRID_ROWS)
+        ]
 
     count = 0
     counts = class_counts(args.side)
     seen = {}
-    for r in range(GRID_ROWS):
-        top = round(y0 + r * cell_h)
-        bottom = round(y0 + (r + 1) * cell_h)
+    for r, (top, bottom) in enumerate(rows):
         row_cards = 0
-        for ci, (left, right) in enumerate(column_runs(fg, top, bottom)):
-            cell = img.crop((left, top, right + 1, bottom))
+        for ci, (left, right) in enumerate(column_runs(fg, top, bottom + 1)):
+            cell = img.crop((left, top, right + 1, bottom + 1))
             cell_fg = np.asarray(cell)[..., 3] > 0
             if cell_fg.sum() < MIN_CARD_PIXELS:
                 continue  # empty/stray cell
