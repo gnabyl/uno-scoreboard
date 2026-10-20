@@ -3,9 +3,11 @@
 
 Each image picks a random number of cards, a random fan spread angle, a random
 card height, a random background (real photos when available), a whole-hand
-perspective tilt (the camera looking at the table from an angle), and random
-lighting (brightness/contrast/color). Cards are drawn left-to-right so
-each subsequent card overlaps the previous one, like a hand of cards.
+perspective tilt (the camera looking at the table from an angle), and scene
+lighting: a light source that brightens one side of the hand, casts a warm or
+cool colour over the cards, and leaves a glossy specular reflection on the
+plastic faces. Cards are drawn left-to-right so each subsequent card overlaps
+the previous one, like a hand of cards.
 
 Every card is kept fully inside the frame: a hand that fans past an edge is
 nudged back into view, and a hand too large for the canvas is scaled down
@@ -33,7 +35,8 @@ from concurrent.futures import ProcessPoolExecutor
 from functools import lru_cache
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageEnhance
+import numpy as np
+from PIL import Image, ImageDraw
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -456,12 +459,127 @@ def clip_polygon(points, width, height):
     return pts
 
 
-def apply_lighting(img):
-    """Apply random brightness/contrast/color adjustments."""
-    img = ImageEnhance.Brightness(img).enhance(random.uniform(0.65, 1.35))
-    img = ImageEnhance.Contrast(img).enhance(random.uniform(0.65, 1.35))
-    img = ImageEnhance.Color(img).enhance(random.uniform(0.6, 1.5))
-    return img
+# Direct light and ambient fill colours per white-balance mood. The direct
+# light warms or cools the lit side, and the fill leans the other way, so a
+# warm lamp leaves a cool colour cast in the unlit areas instead of only
+# brightening the card.
+LIGHT_MOODS = (
+    ((1.10, 1.00, 0.86), (0.94, 0.97, 1.02)),  # warm lamp, cool fill
+    ((0.92, 0.98, 1.12), (1.03, 0.99, 0.95)),  # cool daylight, warm fill
+    ((1.02, 1.00, 0.98), (0.98, 0.99, 1.01)),  # neutral
+)
+
+
+def _illumination(w, h, light, falloff, ambient):
+    """Per-pixel light level in [ambient, 1], brightest at `light`.
+
+    The light is a point source: level falls off with the squared distance, so
+    one corner of a hand can sit in a pool of light while the far side is dim.
+    `falloff` is the distance at which the light is half strength, in pixels.
+    The field is normalized to its brightest in-frame point, so moving the
+    light outside the frame changes where the pool falls, not the exposure.
+    """
+    xs = np.arange(w, dtype=np.float32) - light[0]
+    ys = np.arange(h, dtype=np.float32) - light[1]
+    d2 = ys[:, None] ** 2 + xs[None, :] ** 2
+    raw = 1.0 / (1.0 + d2 / (falloff * falloff))
+    raw /= raw.max()
+    return ambient + (1.0 - ambient) * raw
+
+
+def _gloss(light, w, h, angle, sigmas):
+    """Soft specular reflection of the light on the scene.
+
+    A glossy plane mirrors the light at one point, and the size of the blob is
+    the light's apparent size, so a window or lamp leaves a broad, slightly
+    stretched highlight rather than a pinpoint. `angle` turns that streak and
+    `sigmas` are its two radii. The result is a plain field; the caller scales
+    it by how reflective each surface is (cards are glossy, the table less so).
+    """
+    xs = np.arange(w, dtype=np.float32) - light[0]
+    ys = np.arange(h, dtype=np.float32) - light[1]
+    cos_a, sin_a = math.cos(angle), math.sin(angle)
+    u = xs[None, :] * cos_a + ys[:, None] * sin_a
+    v = -xs[None, :] * sin_a + ys[:, None] * cos_a
+    su, sv = sigmas
+    return np.exp(-0.5 * (u * u / (su * su) + v * v / (sv * sv)))
+
+
+def apply_lighting(background, cards):
+    """Light the composited scene as if a real lamp or window lit the table.
+
+    The old pass was a flat brightness/contrast/colour jitter on the finished
+    image: every card got the same treatment, lit or not. This one models a
+    light source instead:
+
+    * a light near the hand with distance falloff, so the scene has a bright
+      side and a dim side;
+    * a warm/cool direct colour against a complementary ambient fill, so the
+      card picks up a colour cast rather than only a brightness change;
+    * a glossy specular reflection across the scene - strong on the plastic
+      cards, faint on the table - broad and slightly stretched like the
+      reflection of a window or lamp.
+
+    The light field and the highlight cover the background as well as the
+    cards, so the whole frame shares one source. Cards are flat and lie on the
+    table, so their cast shadow is a negligible sliver - the glossy highlight
+    is what sells the light, and that is what this pass spends its effort on.
+    `background` and `cards` are RGBA and share one canvas size; the cards are
+    composited here. No card moves, so labels are unaffected.
+    """
+    w, h = background.size
+    box = cards.getbbox()
+    if box is not None:
+        # Put the light (and so the mirror point of the highlight) on a card,
+        # not in the empty gap between fanned cards: a reflection that peaks on
+        # the table shows no gloss at all. Rejection-sample the card pixels so
+        # the hotspot can land anywhere on the hand, not always at its centre.
+        alpha_mask = np.asarray(cards.getchannel("A"), dtype=np.uint8)
+        light = ((box[0] + box[2]) / 2.0, (box[1] + box[3]) / 2.0)
+        for _ in range(50):
+            lx = random.uniform(box[0], box[2] - 1)
+            ly = random.uniform(box[1], box[3] - 1)
+            if alpha_mask[int(ly), int(lx)] > 127:
+                light = (lx, ly)
+                break
+    else:
+        light = (random.uniform(0.2, 0.8) * w, random.uniform(0.2, 0.8) * h)
+    falloff = random.uniform(0.70, 1.30) * w
+    ambient = random.uniform(0.65, 0.90)
+    exposure = random.uniform(0.95, 1.08)
+    direct_rgb, ambient_rgb = random.choice(LIGHT_MOODS)
+
+    # Ambient fill sets the floor; the direct light adds the rest, tinted.
+    level = _illumination(w, h, light, falloff, ambient)
+    direct = np.array(direct_rgb, dtype=np.float32) * exposure
+    fill = np.array(ambient_rgb, dtype=np.float32) * ambient
+    factor = fill[None, None, :] + (level - ambient)[..., None] * direct[None, None, :]
+
+    base = np.asarray(background.convert("RGB"), dtype=np.float32)
+    card = np.asarray(cards, dtype=np.float32)
+    alpha = card[..., 3:4] / 255.0
+    base = base * (1.0 - alpha) + card[..., :3] * alpha
+    lit = base * factor
+
+    # Gloss: a broad sheen plus a tighter hot core, both screen-blended so the
+    # highlight can only add light. Cards reflect strongly and the table only
+    # faintly, but both are lit, so the reflection sits in the scene instead of
+    # being painted onto the cards. Streak angle and radii are random, so the
+    # highlight reads as a window, a lamp or a phone flash across the run.
+    if box is not None:
+        angle = random.uniform(0.0, math.pi)
+        long_axis = random.uniform(0.10, 0.22) * w
+        short_axis = random.uniform(0.02, 0.05) * w
+        reflectivity = alpha * random.uniform(0.55, 0.80)
+        reflectivity += (1.0 - alpha) * random.uniform(0.08, 0.18)
+        sheen = _gloss(light, w, h, angle, (long_axis, short_axis))[..., None]
+        lit += (255.0 - lit) * sheen * reflectivity * direct[None, None, :]
+        core = _gloss(
+            light, w, h, angle, (long_axis * 0.45, short_axis * 0.45)
+        )[..., None]
+        lit += (255.0 - lit) * core * reflectivity * 0.5 * direct[None, None, :]
+
+    return Image.fromarray(np.clip(lit, 0.0, 255.0).astype(np.uint8))
 
 
 def draw_boxes(img, anns):
@@ -686,8 +804,7 @@ def make_hand(card_paths, args, weights=None, photos=None, single=False):
     # own gave every card a different vanishing point and made neighbours cross.
     if args.warp > 0 and anns:
         canvas, anns = _warp_hand(canvas, anns, args.warp)
-    bg.alpha_composite(canvas)
-    img = apply_lighting(bg.convert("RGB"))
+    img = apply_lighting(bg, canvas)
     anns = _clip_anns(anns, img.width, img.height)
     return img, anns
 

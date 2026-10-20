@@ -87,6 +87,18 @@ max 0.31), while the hand as a whole foreshortens the way a camera does. `35`
 is the aggressive option. The hand is re-fitted into the frame after the tilt,
 so cards remain uncut.
 
+### Lighting
+
+Every image is lit as if a real source - a lamp, a window, a phone flash - sat
+near the hand. The pass is not a flat brightness/contrast jitter: a point light
+brightens one side of the hand and falls off across the table, a warm or cool
+direct colour is balanced against a complementary ambient fill, and the whole
+frame picks up a soft specular reflection (a broad sheen plus a tighter hot
+core) where the light mirrors off the scene - strong on the glossy plastic
+cards, faint on the table. The highlight is streaked at a random angle and
+size, so a run contains window bands, lamp blobs and tighter flash hotspots.
+No card moves, so the labels stay exact.
+
 ### Validation split
 
 `--val-frac` is the share of each run that goes to val. Val images are
