@@ -2,9 +2,14 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import RoomBoard from './RoomBoard';
 import { addPlayer, setScore } from '../api-helper/rooms';
+import { recognizeCards } from '../api-helper/cardRecognition';
 
 vi.mock('../api-helper/localModel', () => ({
   preloadModel: () => Promise.resolve(null),
+}));
+
+vi.mock('../api-helper/cardRecognition', () => ({
+  recognizeCards: vi.fn(),
 }));
 
 vi.mock('../api-helper/rooms', () => ({
@@ -28,6 +33,8 @@ const snapshot = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // jsdom has no canvas implementation; the preview handles a null context.
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
 });
 
 test('renders players, rounds and leaderboard', () => {
@@ -154,4 +161,78 @@ test('collapses older rounds and keeps the newest open', () => {
 
   expect(screen.queryByLabelText('Alice round 1 score')).not.toBeInTheDocument();
   expect(screen.getByLabelText('Alice round 2 score')).toBeInTheDocument();
+});
+
+/** Walks through a scan and leaves the modal showing the detected cards. */
+async function runScan() {
+  vi.mocked(recognizeCards).mockResolvedValue({
+    cards: ['reverse', 'draw_five'],
+    detections: [
+      {
+        name: 'reverse',
+        conf: 0.96,
+        box: [10, 0, 50, 60],
+        corners: [
+          { x: 10, y: 0 },
+          { x: 50, y: 0 },
+          { x: 50, y: 60 },
+          { x: 10, y: 60 },
+        ],
+      },
+      {
+        name: 'draw_five',
+        conf: 0.5,
+        box: [100, 0, 140, 60],
+        corners: [
+          { x: 100, y: 0 },
+          { x: 140, y: 0 },
+          { x: 140, y: 60 },
+          { x: 100, y: 60 },
+        ],
+      },
+    ],
+    width: 640,
+    height: 480,
+  });
+
+  render(<RoomBoard code="ABCDEFGH" snapshot={snapshot} onRefresh={() => {}} />);
+
+  const scanButton = screen.getByRole('button', { name: /scan alice's cards for round 1/i });
+  await waitFor(() => expect(scanButton).toBeEnabled());
+  fireEvent.click(scanButton);
+
+  // On a touch device the scan button opens the file picker; jsdom counts as
+  // one, so the photo arrives through the capture input.
+  const file = new File(['x'], 'cards.jpg', { type: 'image/jpeg' });
+  for (const input of document.querySelectorAll('input[type="file"]')) {
+    fireEvent.change(input, { target: { files: [file] } });
+  }
+
+  await waitFor(() => expect(screen.getByText('Detected cards')).toBeInTheDocument());
+}
+
+test('offers a box toggle on the scan preview', async () => {
+  await runScan();
+
+  const toggle = screen.getByRole('checkbox', { name: /show boxes/i });
+  expect(toggle).not.toBeChecked();
+
+  fireEvent.click(toggle);
+  expect(toggle).toBeChecked();
+});
+
+test('applies the scanned score', async () => {
+  await runScan();
+
+  fireEvent.click(screen.getByRole('button', { name: /apply score/i }));
+
+  await waitFor(() =>
+    expect(setScore).toHaveBeenCalledWith('ABCDEFGH', {
+      roundId: 'r1',
+      playerId: 'p1',
+      value: '-40',
+      baseVersion: 3,
+      previousValue: 10,
+    }),
+  );
 });

@@ -1,17 +1,25 @@
 // In-browser UNO Flip card detection via onnxruntime-web.
 //
 // The model was exported from ultralytics with `nms=True`, so its output is
-// already a flat list of detections: shape (1, 300, 6) where each row is
-// [x1, y1, x2, y2, confidence, class_index] in 640x640 input space.
+// already a flat list of detections: shape (1, 300, 7) where each row is
+// [cx, cy, w, h, confidence, class_index, angle] in 640x640 input space. The
+// boxes are rotated (OBB), because the cards in a hand are fanned.
 //
 // We letterbox-resize the image to 640x640 (same as training), run the
-// session, then map boxes back to the original image coordinates and apply a
-// class-agnostic NMS pass to collapse duplicate labels on the same card.
+// session, then map boxes back to the original image coordinates. The NMS
+// baked into the graph is class-wise, so one card read as two different
+// classes survives twice; a class-agnostic pass over the rotated boxes
+// collapses those into a single card.
+//
+// The older axis-aligned model (6 columns per row) is still understood, so
+// the app keeps working against either export.
 
 import * as ort from 'onnxruntime-web';
 
 import { log, progress } from './debugLog';
 import { sortByReadingOrder } from '../lib/cardOrdering';
+import { dedupeDetections, readDetections } from '../lib/detections';
+import { bounds, type Point } from '../lib/rotatedBox';
 
 const INPUT_SIZE = 640;
 const DEFAULT_CONFIDENCE = 0.25;
@@ -46,7 +54,10 @@ const MIN_CONFIDENCE = parseFloat(
 export interface Detection {
   name: string;
   conf: number;
+  /** Axis-aligned bounds in original image coordinates: [x1, y1, x2, y2]. */
   box: number[];
+  /** The four corners of the card, in original image coordinates. */
+  corners: Point[];
 }
 
 export interface DetectionResult {
@@ -218,39 +229,40 @@ export async function detectCards(file: Blob): Promise<DetectionResult> {
     const { tensor, scale, padX, padY } = await bitmapToTensor(bitmap);
     log('running inference…', { image: `${bitmap.width}x${bitmap.height}` });
     const results = await session.run({ [session.inputNames[0]]: tensor });
-    // The output is a float32 tensor of shape [1, 300, 6].
+    // The output is a float32 tensor of shape [1, 300, 7] (rotated model).
     const output = results[session.outputNames[0]] as ort.TypedTensor<'float32'>;
     const data = output.data;
+    const columns = output.dims[2] || 6;
 
-    const detections: Array<{ cls: number; conf: number; box: number[] }> = [];
-    const count = output.dims[1] || 0;
-    for (let i = 0; i < count; i++) {
-      const o = i * 6;
-      const x1 = data[o];
-      const y1 = data[o + 1];
-      const x2 = data[o + 2];
-      const y2 = data[o + 3];
-      const conf = data[o + 4];
-      const cls = Math.round(data[o + 5]);
-      if (conf < MIN_CONFIDENCE || x2 <= x1 || y2 <= y1) continue;
+    const raw = dedupeDetections(
+      readDetections(data, output.dims[1] || 0, columns, MIN_CONFIDENCE),
+    );
 
-      detections.push({
-        cls,
-        conf,
-        box: [(x1 - padX) / scale, (y1 - padY) / scale, (x2 - padX) / scale, (y2 - padY) / scale],
-      });
-    }
+    // Map the corners back to the original image. The letterbox scales both
+    // axes by the same factor, so the rotation is unchanged.
+    const detections = raw.map((detection) => {
+      const points = detection.corners.map((point) => ({
+        x: (point.x - padX) / scale,
+        y: (point.y - padY) / scale,
+      }));
+      return {
+        cls: detection.cls,
+        conf: detection.conf,
+        box: bounds(points),
+        corners: points,
+      };
+    });
 
     // Present cards in reading order (rows top to bottom, cards left to
-    // right) so the scan list matches how they appear in the photo. The ONNX
-    // graph already applies per-class NMS, so overlapping cards are kept -
-    // each detection is one full-card box.
+    // right) so the scan list matches how they appear in the photo. Each
+    // detection is one full card.
     const ordered = sortByReadingOrder(detections);
 
     const annotations = ordered.map((det) => ({
       name: CLASS_NAMES[det.cls] ?? String(det.cls),
       conf: det.conf,
       box: det.box,
+      corners: det.corners,
     }));
     const cards = annotations.map((det) => det.name);
     log('detection complete', { count: cards.length, cards });

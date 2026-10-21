@@ -82,6 +82,42 @@ still loads, but `/api/model` resolves to the function's source instead of
 JSON, and there is no `public/model/` copy to fall back to, so card scanning
 cannot load the detector. Use `npm run vercel:dev` for anything that scans.
 
+## Card detection
+
+The detector runs in the browser, on top of
+[onnxruntime-web](https://onnxruntime.ai/docs/tutorials/web/). The model is
+exported from ultralytics with `nms=True`, so the graph returns a flat list of
+detections, one row per card:
+
+```text
+(1, 300, 7) = cx, cy, w, h, confidence, class_index, angle
+```
+
+The boxes are **rotated** (OBB) - the cards in a hand are fanned, so an
+axis-aligned box would cover the neighbours too. `src/lib/rotatedBox.ts` turns
+a row into its four corners and compares two cards by the overlap of those
+corners; `src/lib/detections.ts` reads the rows and merges the duplicates the
+graph's class-wise NMS leaves behind.
+
+`src/api-helper/localModel.ts` runs the session, maps the corners back to the
+original image and sorts the cards in reading order.
+
+The model itself:
+
+- lives in `public/model/uno-flip-detector.onnx` for local development
+  (gitignored - it is produced by `../train/train.py --export`)
+- lives in a private Vercel Blob in production, signed on request by
+  [`api/model.ts`](./api/model.ts)
+
+Two helpers in `scripts/` deal with the blob:
+
+```bash
+node scripts/blob-model.mjs list       # what is in the store
+node scripts/blob-model.mjs download   # back the live model up
+node scripts/blob-model.mjs put        # upload public/model/uno-flip-detector.onnx
+node scripts/check-model.mjs           # load the model in onnxruntime-web
+```
+
 ## TypeScript
 
 The app is written in TypeScript. `npm run typecheck` runs `tsc --noEmit` over

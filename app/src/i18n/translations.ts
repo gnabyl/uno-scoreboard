@@ -94,6 +94,7 @@ export const en = {
   'board.applyScore': 'Apply score',
   'board.cardCountSingular': '{count} card',
   'board.cardCountPlural': '{count} cards',
+  'board.showBoxes': 'Show boxes',
 
   'export.round': 'Round',
   'export.total': 'Total',
@@ -210,6 +211,7 @@ export const vi: Record<TranslationKey, string> = {
   'board.applyScore': 'Nhập điểm',
   'board.cardCountSingular': '{count} lá bài',
   'board.cardCountPlural': '{count} lá bài',
+  'board.showBoxes': 'Hiện khung bài',
 
   'export.round': 'Ván',
   'export.total': 'Tổng',

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { recognizeCards } from '../api-helper/cardRecognition';
-import { preloadModel } from '../api-helper/localModel';
+import { preloadModel, type Detection } from '../api-helper/localModel';
 import LogPanel from './LogPanel';
+import ScanPreview from './ScanPreview';
 import { computeScore, scoreForCard } from '../lib/unoScoring';
 import { buildScoreboard } from '../lib/scoreboard';
 import { addPlayer, addRound, deletePlayer, deleteRound, setScore } from '../api-helper/rooms';
@@ -25,33 +26,6 @@ const SCORE_INPUT = `${SCORE_FIELD} transition placeholder:font-normal placehold
 
 const CAMERA_BTN =
   'inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[10px] border border-edge bg-raised text-lg leading-none text-muted transition enabled:hover:border-accent enabled:hover:bg-accent/10 enabled:hover:text-accent disabled:cursor-not-allowed disabled:opacity-45 sm:h-[38px] sm:w-[38px] sm:text-base';
-
-async function annotatePreview(
-  file: Blob,
-  width: number,
-  height: number,
-  label: string,
-): Promise<string> {
-  const bitmap = await createImageBitmap(file);
-  try {
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(bitmap, 0, 0, width, height);
-
-    const fontSize = Math.max(28, Math.round(height / 16));
-    ctx.font = `700 ${fontSize}px sans-serif`;
-    const textWidth = ctx.measureText(label).width;
-    ctx.fillStyle = 'rgba(15, 21, 33, 0.85)';
-    ctx.fillRect(8, 8, textWidth + 16, fontSize + 12);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(label, 16, 8 + fontSize + 2);
-    return canvas.toDataURL('image/jpeg', 0.85);
-  } finally {
-    if (typeof bitmap.close === 'function') bitmap.close();
-  }
-}
 
 const cellString = (value: number | string | null | undefined) =>
   value === null || value === undefined ? '' : String(value);
@@ -122,7 +96,9 @@ interface ScanState {
   status: 'capturing' | 'loading' | 'done' | 'error';
   previewUrl?: string;
   cards?: string[];
-  annotatedPreview?: string;
+  detections?: Detection[];
+  imageWidth?: number;
+  imageHeight?: number;
   score?: number;
   error?: string;
 }
@@ -173,6 +149,7 @@ export default function RoomBoard({
 
   // Scan modal state.
   const [scan, setScan] = useState<ScanState | null>(null);
+  const [showBoxes, setShowBoxes] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [modelReady, setModelReady] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -345,24 +322,20 @@ export default function RoomBoard({
   const recognizeFileFor = async (file: File, roundId: string, playerId: string) => {
     stopCamera();
     const previewUrl = URL.createObjectURL(file);
+    setShowBoxes(false);
     setScan({ roundId, playerId, previewUrl, status: 'loading' });
 
     try {
       const result = await recognizeCards(file);
-      const count = result.detections.length;
-      const annotatedPreview = await annotatePreview(
-        file,
-        result.width,
-        result.height,
-        t(count === 1 ? 'board.cardCountSingular' : 'board.cardCountPlural', { count }),
-      );
       setScan((prev) =>
         prev
           ? {
               ...prev,
               status: 'done',
               cards: result.cards,
-              annotatedPreview,
+              detections: result.detections,
+              imageWidth: result.width,
+              imageHeight: result.height,
               score: -computeScore(result.cards),
             }
           : prev,
@@ -407,6 +380,8 @@ export default function RoomBoard({
     if (scan && scan.previewUrl) URL.revokeObjectURL(scan.previewUrl);
     setScan(null);
   };
+
+  const cardCount = scan?.cards?.length ?? 0;
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -765,11 +740,29 @@ export default function RoomBoard({
                   {t('board.detectedCards')}
                 </h3>
                 {scan.previewUrl && (
-                  <img
-                    className="mb-3.5 max-h-[260px] w-full rounded-xl border border-edge bg-deep object-contain"
-                    src={scan.annotatedPreview || scan.previewUrl}
-                    alt={t('board.capturedAlt')}
-                  />
+                  <>
+                    <ScanPreview
+                      url={scan.previewUrl}
+                      width={scan.imageWidth ?? 0}
+                      height={scan.imageHeight ?? 0}
+                      label={t(
+                        cardCount === 1 ? 'board.cardCountSingular' : 'board.cardCountPlural',
+                        { count: cardCount },
+                      )}
+                      detections={scan.detections ?? []}
+                      showBoxes={showBoxes}
+                      alt={t('board.capturedAlt')}
+                    />
+                    <label className="mb-3.5 flex cursor-pointer items-center gap-2.5 text-sm text-muted">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 shrink-0 accent-accent"
+                        checked={showBoxes}
+                        onChange={(event) => setShowBoxes(event.target.checked)}
+                      />
+                      {t('board.showBoxes')}
+                    </label>
+                  </>
                 )}
                 {scan.cards && scan.cards.length > 0 ? (
                   <ul className="mb-3.5 max-h-[180px] list-none overflow-y-auto p-0">
