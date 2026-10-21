@@ -182,6 +182,7 @@ async function runScan(count = 2) {
     detections,
     width: 640,
     height: 480,
+    image: new Blob(['photo'], { type: 'image/jpeg' }),
   });
 
   render(<RoomBoard code="ABCDEFGH" snapshot={snapshot} onRefresh={() => {}} />);
@@ -190,8 +191,7 @@ async function runScan(count = 2) {
   await waitFor(() => expect(scanButton).toBeEnabled());
   fireEvent.click(scanButton);
 
-  // On a touch device the scan button opens the file picker; jsdom counts as
-  // one, so the photo arrives through the capture input.
+  // The photo arrives through one of the file inputs.
   const file = new File(['x'], 'cards.jpg', { type: 'image/jpeg' });
   for (const input of document.querySelectorAll('input[type="file"]')) {
     fireEvent.change(input, { target: { files: [file] } });
@@ -233,4 +233,28 @@ test('applies the scanned score', async () => {
       previousValue: 10,
     }),
   );
+});
+
+test('scans with the in-page camera instead of the native camera app', async () => {
+  // The native camera app runs in another app: Android Chrome reloads the
+  // page when it closes, so the in-page camera is the one that is used.
+  const stream = { getTracks: () => [] };
+  const getUserMedia = vi.fn().mockResolvedValue(stream);
+  Object.defineProperty(navigator, 'mediaDevices', {
+    value: { getUserMedia },
+    configurable: true,
+  });
+  vi.spyOn(window.HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+  const inputClick = vi.spyOn(HTMLInputElement.prototype, 'click');
+
+  render(<RoomBoard code="ABCDEFGH" snapshot={snapshot} onRefresh={() => {}} />);
+
+  const scanButton = screen.getByRole('button', { name: /scan alice's cards for round 1/i });
+  await waitFor(() => expect(scanButton).toBeEnabled());
+  fireEvent.click(scanButton);
+
+  await waitFor(() => expect(getUserMedia).toHaveBeenCalled());
+  // No file input was opened, so no other app takes over the screen.
+  expect(inputClick).not.toHaveBeenCalled();
+  expect(screen.getByRole('dialog')).toBeInTheDocument();
 });

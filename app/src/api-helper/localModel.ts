@@ -27,6 +27,7 @@ import {
   shouldUseCachedModel,
 } from '../lib/modelCache';
 import { bounds, type Point } from '../lib/rotatedBox';
+import { bitmapToJpeg, decodePhoto } from '../lib/photo';
 
 const INPUT_SIZE = 640;
 const DEFAULT_CONFIDENCE = 0.25;
@@ -79,6 +80,11 @@ export interface DetectionResult {
   detections: Detection[];
   width: number;
   height: number;
+  /**
+   * The photo that was analysed, scaled down to a size a phone can hold.
+   * Reuse it for the preview so the preview shows exactly what was read.
+   */
+  image?: Blob;
 }
 
 let sessionPromise: Promise<ort.InferenceSession> | null = null;
@@ -295,7 +301,10 @@ async function bitmapToTensor(bitmap: ImageBitmap) {
  */
 export async function detectCards(file: Blob): Promise<DetectionResult> {
   const session = await getSession();
-  const bitmap = await createImageBitmap(file);
+  // The photo is decoded straight to a bounded size: a full-resolution camera
+  // shot is ~48 MB of pixels, which is enough to get the browser killed on a
+  // phone - the user would see the page reload instead of the result.
+  const bitmap = await decodePhoto(file);
   const width = bitmap.width;
   const height = bitmap.height;
   try {
@@ -338,8 +347,17 @@ export async function detectCards(file: Blob): Promise<DetectionResult> {
       corners: det.corners,
     }));
     const cards = annotations.map((det) => det.name);
+    // The preview reuses this copy, so the full-resolution photo never has to
+    // be decoded a second time. A preview that cannot be encoded is not
+    // worth losing the detection over.
+    let image: Blob | undefined;
+    try {
+      image = await bitmapToJpeg(bitmap);
+    } catch (err) {
+      log('could not encode the preview image', { error: err.message });
+    }
     log('detection complete', { count: cards.length, cards });
-    return { cards, detections: annotations, width, height };
+    return { cards, detections: annotations, width, height, image };
   } catch (err) {
     log('inference failed', { error: err.message });
     throw err;

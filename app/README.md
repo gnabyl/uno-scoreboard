@@ -139,6 +139,28 @@ node scripts/blob-model.mjs put        # upload public/model/uno-flip-detector.o
 node scripts/check-model.mjs           # load the model in onnxruntime-web
 ```
 
+## Taking photos
+
+Scanning uses the camera that lives **in the page** (`getUserMedia`), on every
+device. The native camera app - `<input type="file" capture="environment">` -
+is deliberately not the primary path, because it runs in another app and
+Android Chrome reloads the tab when that app closes: the OS kills the
+renderer while the camera is in the foreground, and the page comes back
+reloaded ([crbug 409357263](https://issues.chromium.org/issues/409357263)).
+The in-page camera keeps the tab alive.
+
+The native camera is kept as a fallback for browsers without `getUserMedia`,
+and for when the camera permission is refused - it needs no permission. Its
+input is kept in the layout (off-screen) rather than `display: none`, because
+a hidden input is one of the things that makes the browser reload the page.
+
+Photos are scaled down to 1280 px on the long edge before anything else
+touches them (`src/lib/photo.ts`). A camera photo is 3-12 megapixels, which
+is up to ~48 MB of pixels once decoded - enough, together with the model and
+the WASM runtime, for a phone's browser to be killed. The detector works on
+the scaled-down copy and hands it back for the preview, so the preview shows
+exactly what was read and the full-resolution photo is never held twice.
+
 ## TypeScript
 
 The app is written in TypeScript. `npm run typecheck` runs `tsc --noEmit` over

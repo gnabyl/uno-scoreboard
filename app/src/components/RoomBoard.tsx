@@ -8,15 +8,10 @@ import { buildScoreboard } from '../lib/scoreboard';
 import { addPlayer, addRound, deletePlayer, deleteRound, setScore } from '../api-helper/rooms';
 import { describeRoomError } from '../lib/roomCode';
 import { useTranslation } from '../i18n';
+import { fitWithin } from '../lib/photo';
 import { BTN_ACCENT, BTN_GHOST, BTN_PRIMARY, ErrorNotice, INPUT } from './ui';
 import type { RoomSnapshot } from '../api-helper/rooms';
 import { Modal } from './modal';
-
-const IS_TOUCH = (() => {
-  if (typeof window === 'undefined') return false;
-  if (window.matchMedia) return window.matchMedia('(pointer: coarse)').matches;
-  return 'ontouchstart' in window;
-})();
 
 const PLAYER_COLORS = ['bg-brand-red', 'bg-brand-orange', 'bg-brand-teal', 'bg-brand-blue'];
 
@@ -158,17 +153,28 @@ export default function RoomBoard({
   const preloadStartedRef = useRef(false);
   const mobileInputRef = useRef<HTMLInputElement | null>(null);
   const pendingTargetRef = useRef<{ roundId: string; playerId: string } | null>(null);
+  // The preview URL of the scan that is on screen, so it can be revoked.
+  const previewUrlRef = useRef<string | null>(null);
+  // Bumped whenever the camera is (re)started or stopped, so a stream that
+  // arrives late - after the permission prompt was dismissed - is discarded
+  // instead of being attached to the wrong view.
+  const cameraTokenRef = useRef(0);
 
   // Add player modal
   const [newPlayerName, setNewPlayerName] = useState<string>('');
   const [addPlayerModalOpen, setAddPlayerModalOpen] = useState<boolean>(false);
   const [addPlayerError, setAddPlayerError] = useState<string | null>(null);
 
-  // Stop the camera if the component unmounts while it is running.
+  // Release the camera and the preview when the component goes away.
   useEffect(() => {
     return () => {
+      cameraTokenRef.current += 1;
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
       }
     };
   }, []);
@@ -272,26 +278,68 @@ export default function RoomBoard({
     }
   };
 
+  /**
+   * Opens the native camera app.
+   *
+   * This is only a fallback: the native camera runs in another app, and
+   * Android Chrome reloads the tab when that app closes - the OS kills the
+   * renderer while the camera is in the foreground, and the page comes back
+   * reloaded (crbug.com/chromium/409357263). The in-page camera keeps the
+   * tab alive, so it is the one that is used.
+   */
+  const openNativeCamera = (roundId: string, playerId: string) => {
+    pendingTargetRef.current = { roundId, playerId };
+    const input = mobileInputRef.current;
+    if (!input) return;
+    // Clear the selection so the same photo can be taken again.
+    input.value = '';
+    input.click();
+  };
+
   const startCamera = async (roundId: string, playerId: string) => {
     setCameraError(null);
     setScan({ roundId, playerId, status: 'capturing' });
 
+    const token = ++cameraTokenRef.current;
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      // No in-page camera at all: the native one is all there is.
+      openNativeCamera(roundId, playerId);
+      return;
+    }
+
+    let stream: MediaStream;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' } },
         audio: false,
       });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play().catch(() => {});
-      }
     } catch {
+      // The in-page camera needs a permission the user may have refused.
+      // The native camera app needs none, so it is the fallback.
       setCameraError(t('board.cameraError'));
+      openNativeCamera(roundId, playerId);
+      return;
+    }
+
+    // The scan may have been closed while the permission prompt was up.
+    if (token !== cameraTokenRef.current) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
+
+    streamRef.current = stream;
+    // The <video> element may still be on its way; when it mounts it picks
+    // the stream up from streamRef.
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(() => {});
     }
   };
 
   const stopCamera = () => {
+    // Any stream that is still on its way is no longer wanted.
+    cameraTokenRef.current += 1;
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
@@ -301,13 +349,18 @@ export default function RoomBoard({
 
   const capturePhoto = () => {
     const video = videoRef.current;
-    if (!video || !video.videoWidth) return;
+    if (!video || !video.videoWidth || !scan) return;
 
+    // The frame is scaled down before it is encoded: a full-size frame is
+    // far more pixels than the detector needs, and holding them is what gets
+    // a phone's browser killed.
+    const size = fitWithin(video.videoWidth, video.videoHeight);
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = size.width;
+    canvas.height = size.height;
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, size.width, size.height);
     canvas.toBlob(
       (blob) => {
         if (!blob) return;
@@ -319,19 +372,31 @@ export default function RoomBoard({
     );
   };
 
+  /** Points the preview at a new photo and frees the previous one. */
+  const setPreview = (blob: Blob) => {
+    const url = URL.createObjectURL(blob);
+    const previous = previewUrlRef.current;
+    previewUrlRef.current = url;
+    if (previous) URL.revokeObjectURL(previous);
+    return url;
+  };
+
   const recognizeFileFor = async (file: File, roundId: string, playerId: string) => {
     stopCamera();
-    const previewUrl = URL.createObjectURL(file);
     setShowBoxes(false);
-    setScan({ roundId, playerId, previewUrl, status: 'loading' });
+    setScan({ roundId, playerId, status: 'loading' });
 
     try {
       const result = await recognizeCards(file);
+      // The preview shows the photo the detector actually read, not the
+      // full-resolution original.
+      const previewUrl = setPreview(result.image ?? file);
       setScan((prev) =>
         prev
           ? {
               ...prev,
               status: 'done',
+              previewUrl,
               cards: result.cards,
               detections: result.detections,
               imageWidth: result.width,
@@ -350,12 +415,7 @@ export default function RoomBoard({
   };
 
   const openCamera = (roundId: string, playerId: string) => {
-    if (IS_TOUCH) {
-      pendingTargetRef.current = { roundId, playerId };
-      if (mobileInputRef.current) mobileInputRef.current.click();
-    } else {
-      startCamera(roundId, playerId);
-    }
+    startCamera(roundId, playerId);
   };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -363,9 +423,12 @@ export default function RoomBoard({
     if (file && scan) recognizeFileFor(file, scan.roundId, scan.playerId);
   };
 
-  const handleNativeFile = (event) => {
+  const handleNativeFile = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files && event.target.files[0];
+    // Clear the selection so the same photo can be taken again.
+    event.target.value = '';
     const target = pendingTargetRef.current;
+    pendingTargetRef.current = null;
     if (file && target) recognizeFileFor(file, target.roundId, target.playerId);
   };
 
@@ -377,7 +440,10 @@ export default function RoomBoard({
 
   const closeScan = () => {
     stopCamera();
-    if (scan && scan.previewUrl) URL.revokeObjectURL(scan.previewUrl);
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
     setScan(null);
   };
 
@@ -599,12 +665,16 @@ export default function RoomBoard({
         onChange={handleFileChange}
       />
 
+      {/* Fallback for browsers without an in-page camera. It is kept in the
+          layout (just off-screen) rather than display:none, because a hidden
+          input is what makes the browser reload the page when the camera
+          app closes. */}
       <input
         ref={mobileInputRef}
         type="file"
         accept="image/*"
         capture="environment"
-        className="hidden"
+        className="pointer-events-none absolute left-[-9999px] top-0 h-px w-px opacity-0"
         onChange={handleNativeFile}
       />
 
