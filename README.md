@@ -40,7 +40,7 @@ the table can see and edit live, and it can score a hand from a photo.
   over Supabase Realtime.
 - **Phone-first.** Thumb-sized controls and a single scrolling board, designed
   for a phone held at the table.
-- **Scan a hand.** Point the camera at the cards left in a hand; a YOLOv8
+- **Scan a hand.** Point the camera at the cards left in a hand; a YOLO26
   detector running in the browser names each card and sums the points.
 - **One set of rules.** The board, the scanner, and the PNG export all derive
   totals and winners from the same scoring code.
@@ -78,10 +78,10 @@ the table can see who is closest. The rules live in
 │              │   Realtime `rooms.version`  │ scores / events    │
 └──────┬───────┘                             └────────────────────┘
        │
-       │  YOLOv8 → ONNX (NMS baked in)
+       │  YOLO26 OBB → ONNX (NMS baked in)
        ▼
 ┌──────────────────────┐
-│ onnxruntime-web WASM │  card boxes + class names → points
+│ onnxruntime-web WASM │  rotated card boxes + class names → points
 └──────────────────────┘
 ```
 
@@ -112,9 +112,12 @@ The conflict policy is covered in [`app/README.md`](app/README.md).
 2. The image is letterboxed to 640×640 and run through
    [onnxruntime-web](https://onnxruntime.ai/docs/tutorials/web/). NMS is baked
    into the exported graph, so the output is already a flat list of
-   `x1, y1, x2, y2, confidence, class`.
-3. Detections are mapped back to the original image, deduplicated, converted to
-   points, and shown for confirmation before the score is applied.
+   `cx, cy, w, h, confidence, class, angle` - the boxes are rotated, because
+   the cards in a hand are fanned.
+3. Detections are mapped back to the original image, the duplicates the
+   class-wise NMS left behind are merged with a class-agnostic pass over the
+   rotated boxes, and the cards are shown for confirmation before the score is
+   applied.
 
 The 18 classes are color-agnostic and split across the light and dark sides, so
 a `light_blue_7` and a `dark_blue_7` both score as `7`:
@@ -134,7 +137,7 @@ uno-counter/
 │  └─ public/            PWA icons and local model fallback
 ├─ supabase/migrations/  Postgres schema, RPCs, rate limits
 ├─ data/                 synthetic dataset generator (sprite → YOLO)
-├─ train/                YOLOv8 fine-tuning and ONNX export
+├─ train/                YOLO26 OBB fine-tuning and ONNX export
 ├─ test_images/          sample card photos
 └─ docs/screenshots/     images used by this README
 ```
@@ -241,14 +244,17 @@ cd data
 python extract_cards.py flip_light_combine.png --side light
 python extract_cards.py flip_dark_combine.png  --side dark
 
-# 2. Composite fanned hands into YOLO images + labels
-python compose_hands.py --count 8000 --full-card
-python compose_hands.py --count 2000 --min-cards 1 --max-cards 1 --full-card --start-index 8000 --keep-existing
+# 2. Composite fanned hands into YOLO images + rotated labels
+python compose_hands.py --count 10000 --val-frac 0.1 --warp 25
 
 # 3. Fine-tune and export
 cd ../train
 python train.py --epochs 100 --batch 16 --workers 2 --export
 ```
+
+The labels are rotated boxes, so the detector is an **OBB** model
+(`yolo26n-obb.pt`): it predicts a rotated box per card, which fits the fanned
+hands far better than an axis-aligned one.
 
 After training, export with NMS baked in and serve the result:
 
@@ -258,7 +264,14 @@ Copy-Item train\runs\uno_flip-X\weights\best.onnx app\public\model\uno-flip-dete
 ```
 
 For production, upload `best.onnx` to a **private** Vercel Blob named
-`uno-flip-detector.onnx`; `api/model.ts` will sign it on request.
+`uno-flip-detector.onnx`; `api/model.ts` will sign it on request. The app
+ships a small helper for it:
+
+```bash
+cd app
+node scripts/blob-model.mjs put       # uploads public/model/uno-flip-detector.onnx
+node scripts/blob-model.mjs download  # keeps a copy of the live model first
+```
 
 ## Deployment
 

@@ -82,13 +82,20 @@ Each run contains:
 Copy-Item train\runs\uno_flip-X\weights\best.onnx app\public\model\uno-flip-detector.onnx -Force
 ```
 
-The export deliberately uses `nms=False`: the graph emits raw rows
+The export uses `nms=True`, so the graph emits rows
 `(1, 300, 7)` = `cx, cy, w, h, conf, class, angle` (angle in radians, boxes in
-640 px space). Ultralytics' built-in NMS is per-class, which is what produced
-duplicate boxes when one card was read as different classes, so dedupe happens
-in the app instead (`app/src/api-helper/localModel.ts`, rotated class-agnostic
-IoU). After exporting, run one of the `test_images/` photos by hand to confirm
-the app and the model agree.
+640 px space) with the NMS already applied.
+
+`nms=True` is not optional: with `nms=False` ultralytics switches the head to
+YOLO26's end-to-end one-to-one branch, and the export then depends on a
+branch the fine-tune only trained as a side effect. With NMS exported, the
+graph keeps the branch the model was trained and validated with, and the
+detections match `model.predict()` on the same photo.
+
+That NMS is class-wise, so one card read as two different classes survives
+twice; the app merges those with a class-agnostic rotated IoU pass
+(`app/src/lib/detections.ts`). After exporting, run one of the
+`test_images/` photos by hand to confirm the app and the model agree.
 
 ## Inspect a run while training
 

@@ -106,15 +106,21 @@ def find_resume_model():
 
 
 def export_onnx(weights, imgsz):
-    """Export best weights to ONNX without baked NMS.
+    """Export best weights to ONNX with NMS baked into the graph.
 
-    YOLO26 heads are end-to-end, so the graph emits raw rows and the app does
-    its own rotated, class-agnostic dedupe (ultralytics' built-in NMS is
-    per-class, which is what produced duplicate boxes on real photos).
+    `nms=True` matters: with `nms=False` ultralytics switches the head to
+    YOLO26's end-to-end one-to-one branch, so the export depends on a branch
+    the fine-tune only trained as a side effect. With NMS exported, the
+    graph keeps the branch the model was trained and validated with, and the
+    detections match `model.predict()` on the same photo.
+
+    The baked-in NMS is class-wise, so one card read as two different
+    classes survives twice; the app merges those with a class-agnostic
+    rotated IoU pass (app/src/lib/detections.ts).
     """
     from ultralytics import YOLO
 
-    out = YOLO(str(weights)).export(format="onnx", imgsz=imgsz, nms=False)
+    out = YOLO(str(weights)).export(format="onnx", imgsz=imgsz, nms=True)
     print(f"exported {out}")
     print("  output (1, 300, 7): cx, cy, w, h, conf, class, angle (radians)")
 
