@@ -257,6 +257,46 @@ test('shows the whole camera frame in the preview', async () => {
   expect(video.className).toContain('object-contain');
 });
 
+test('does not restart the camera when the preview learns the frame size', async () => {
+  // A ref callback that changes on every render makes React re-attach the
+  // video, which restarts the stream - the preview would stay black.
+  let attached = 0;
+  Object.defineProperty(HTMLVideoElement.prototype, 'srcObject', {
+    configurable: true,
+    get() {
+      return (this as any)._stream;
+    },
+    set(value) {
+      attached += 1;
+      (this as any)._stream = value;
+    },
+  });
+
+  const stream = { getTracks: () => [] };
+  Object.defineProperty(navigator, 'mediaDevices', {
+    value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
+    configurable: true,
+  });
+  vi.spyOn(window.HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+
+  render(<RoomBoard code="ABCDEFGH" snapshot={snapshot} onRefresh={() => {}} />);
+
+  const scanButton = screen.getByRole('button', { name: /scan alice's cards for round 1/i });
+  await waitFor(() => expect(scanButton).toBeEnabled());
+  fireEvent.click(scanButton);
+
+  await waitFor(() => expect(attached).toBe(1));
+
+  const video = document.querySelector('video') as HTMLVideoElement;
+  Object.defineProperty(video, 'videoWidth', { value: 720, configurable: true });
+  Object.defineProperty(video, 'videoHeight', { value: 1280, configurable: true });
+  fireEvent.loadedMetadata(video);
+
+  // The size is known now, which re-renders - the stream stays as it is.
+  await waitFor(() => expect(video.parentElement?.style.aspectRatio).toBe('720 / 1280'));
+  expect(attached).toBe(1);
+});
+
 test('scans with the in-page camera instead of the native camera app', async () => {
   // The native camera app runs in another app: Android Chrome reloads the
   // page when it closes, so the in-page camera is the one that is used.

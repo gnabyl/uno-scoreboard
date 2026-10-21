@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from 'react';
 import { recognizeCards } from '../api-helper/cardRecognition';
 import { preloadModel, type Detection } from '../api-helper/localModel';
 import LogPanel from './LogPanel';
@@ -273,13 +281,16 @@ export default function RoomBoard({
   const isWinner = (playerId: string) => scoreboard.leaderIds.includes(playerId);
 
   // ---------- Photo scanning ----------
-  const attachVideo = (node: HTMLVideoElement | null) => {
+  // The ref callback has to be stable: a new one on every render makes React
+  // re-attach the video, which restarts the stream - and a restarting camera
+  // shows a black frame.
+  const attachVideo = useCallback((node: HTMLVideoElement | null) => {
     videoRef.current = node;
     if (node && streamRef.current) {
       node.srcObject = streamRef.current;
       node.play().catch(() => {});
     }
-  };
+  }, []);
 
   /**
    * Opens the native camera app.
@@ -762,9 +773,14 @@ export default function RoomBoard({
                     ref={attachVideo}
                     onLoadedMetadata={(event) => {
                       const video = event.currentTarget;
-                      if (video.videoWidth && video.videoHeight) {
-                        setStreamSize({ width: video.videoWidth, height: video.videoHeight });
-                      }
+                      if (!video.videoWidth || !video.videoHeight) return;
+                      // Keep the same object when the size did not change, so
+                      // a re-render cannot start a loop.
+                      setStreamSize((prev) =>
+                        prev && prev.width === video.videoWidth && prev.height === video.videoHeight
+                          ? prev
+                          : { width: video.videoWidth, height: video.videoHeight },
+                      );
                     }}
                     className="h-full w-full object-contain"
                     playsInline
