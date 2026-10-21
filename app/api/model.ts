@@ -22,8 +22,11 @@ export default async function handler(req: any, res: any) {
       pathname: MODEL_PATH,
       access: 'private',
     });
-    const { size } = await head(MODEL_PATH, { token });
-    return res.status(200).json({ url: presignedUrl, size });
+    const { size, uploadedAt } = await head(MODEL_PATH, { token });
+    // `uploadedAt` + `size` are the model's version: the browser caches the
+    // download under it, so uploading a new model invalidates the cache
+    // without anyone having to bump a number.
+    return res.status(200).json({ url: presignedUrl, size, uploadedAt });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to sign model URL' });
   }

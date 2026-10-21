@@ -116,6 +116,20 @@ The model itself:
 - lives in a private Vercel Blob in production, signed on request by
   [`api/model.ts`](./api/model.ts)
 
+### The model cache
+
+The model is 10 MB, so it is downloaded once and then kept in IndexedDB
+(`src/lib/modelCache.ts`). The browser's own HTTP cache cannot help here: the
+blob is served with `max-age=0` and every signed URL is different.
+
+The cache is keyed by a version built from the blob's metadata
+(`uploadedAt` + size), which `api/model.ts` returns alongside the signed URL.
+So uploading a new model invalidates the cache by itself - and rolling back to
+an older model does too. If the cached copy turns out to be corrupt, the app
+drops it and downloads the model again.
+
+With the model cached, scanning works without a network connection.
+
 Two helpers in `scripts/` deal with the blob:
 
 ```bash

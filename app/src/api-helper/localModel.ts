@@ -19,10 +19,24 @@ import * as ort from 'onnxruntime-web';
 import { log, progress } from './debugLog';
 import { sortByReadingOrder } from '../lib/cardOrdering';
 import { dedupeDetections, readDetections } from '../lib/detections';
+import {
+  clearModelCache,
+  getCachedModel,
+  modelVersion,
+  putCachedModel,
+  shouldUseCachedModel,
+} from '../lib/modelCache';
 import { bounds, type Point } from '../lib/rotatedBox';
 
 const INPUT_SIZE = 640;
 const DEFAULT_CONFIDENCE = 0.25;
+
+/** The model bytes, and where they came from. */
+interface ModelBytes {
+  bytes: Uint8Array;
+  /** True when the bytes came from the browser's cache. */
+  fromCache: boolean;
+}
 
 // Must match `CLASSES` order in data/compose_hands.py (see data/classes.txt).
 const CLASS_NAMES = [
@@ -69,27 +83,72 @@ export interface DetectionResult {
 
 let sessionPromise: Promise<ort.InferenceSession> | null = null;
 
-async function fetchModelBuffer() {
+async function fetchModelBuffer(): Promise<ModelBytes> {
   // Production: ask the Vercel function for a fresh signed URL, then download
   // the bytes ourselves. Fetching explicitly keeps the signed query string
   // intact and lets us log download progress before handing bytes to
   // onnxruntime-web.
+  let remote: { url: string; size: number; version: string } | null = null;
   try {
     const res = await fetch('/api/model');
     if (res.ok) {
       const data = await res.json();
       if (typeof data.url === 'string' && data.url) {
         log('signed model URL received from /api/model');
-        return await downloadModel(data.url, data.size);
+        remote = {
+          url: data.url,
+          size: data.size,
+          version: modelVersion(data.uploadedAt, data.size),
+        };
       }
+    } else {
+      log('no signed URL from /api/model, falling back to local file');
     }
-    log('no signed URL from /api/model, falling back to local file');
   } catch (err) {
     log('failed to fetch /api/model', { error: err.message });
   }
+
+  // The model is 10 MB, so it is worth keeping: reuse the cached copy when
+  // the server offers the same version.
+  const cached = await getCachedModel();
+  if (remote && cached && shouldUseCachedModel(cached.version, remote.version)) {
+    log('model loaded from cache', { bytes: cached.bytes.byteLength });
+    return { bytes: new Uint8Array(cached.bytes), fromCache: true };
+  }
+
+  if (remote) {
+    const bytes = await downloadModel(remote.url, remote.size);
+    await putCachedModel(remote.version, toArrayBuffer(bytes));
+    return { bytes, fromCache: false };
+  }
+
   // Development (plain `npm start`): the file is served from public/.
   const localUrl = `${import.meta.env.PUBLIC_URL || ''}/model/uno-flip-detector.onnx`;
-  return downloadModel(localUrl);
+  const version = await localModelVersion(localUrl);
+  if (cached && shouldUseCachedModel(cached.version, version)) {
+    log('model loaded from cache', { bytes: cached.bytes.byteLength });
+    return { bytes: new Uint8Array(cached.bytes), fromCache: true };
+  }
+  const bytes = await downloadModel(localUrl);
+  if (version) await putCachedModel(version, toArrayBuffer(bytes));
+  return { bytes, fromCache: false };
+}
+
+/** The size of the local model file, used as its version in development. */
+async function localModelVersion(url: string): Promise<string> {
+  try {
+    const res = await fetch(url, { method: 'HEAD' });
+    if (!res.ok) return '';
+    const length = Number(res.headers.get('Content-Length')) || 0;
+    return length ? modelVersion('dev', length) : '';
+  } catch {
+    return '';
+  }
+}
+
+/** A standalone copy of the bytes, so it can be stored in IndexedDB. */
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }
 
 async function downloadModel(url: string, knownSize: number | string = 0) {
@@ -141,7 +200,7 @@ function getSession() {
       // The ~20 MB of WASM runtime files are fetched from the pinned CDN so
       // they don't need to be committed to the repo.
       ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.30.0/dist/';
-      const buffer = await fetchModelBuffer();
+      const { bytes, fromCache } = await fetchModelBuffer();
       progress('session', 'loading ONNX session…', {
         providers: ['webgl', 'wasm'],
       });
@@ -154,22 +213,36 @@ function getSession() {
         progress('session', 'loading ONNX session…', { elapsed: `${secs}s` });
       }, 500);
       try {
-        const session = await ort.InferenceSession.create(buffer, {
-          executionProviders: ['webgl', 'wasm'],
-          graphOptimizationLevel: 'all',
-        });
+        const session = await createSession(bytes);
         const secs = ((performance.now() - t0) / 1000).toFixed(1);
         log('ONNX session ready', { time: `${secs}s` });
         return session;
       } catch (err) {
-        log('ONNX session failed', { error: err.message });
-        throw err;
+        if (!fromCache) {
+          log('ONNX session failed', { error: err.message });
+          throw err;
+        }
+        // The cached copy may be truncated or corrupt: drop it and fetch the
+        // model again before giving up.
+        log('cached model failed to load, downloading it again', { error: err.message });
+        await clearModelCache();
+        const fresh = await fetchModelBuffer();
+        const session = await createSession(fresh.bytes);
+        log('ONNX session ready', { time: `${((performance.now() - t0) / 1000).toFixed(1)}s` });
+        return session;
       } finally {
         window.clearInterval(heartbeat);
       }
     })();
   }
   return sessionPromise;
+}
+
+function createSession(bytes: Uint8Array) {
+  return ort.InferenceSession.create(bytes, {
+    executionProviders: ['webgl', 'wasm'],
+    graphOptimizationLevel: 'all',
+  });
 }
 
 /**
