@@ -21,11 +21,10 @@ export interface RawDetection {
  *
  * The NMS baked into the graph is class-wise, so this only has to merge one
  * card seen under two different class labels. Measured on real photos, those
- * pairs overlap by 0.9 and more, while two different cards in a fanned hand
- * already reach 0.65 - so the threshold sits just under the duplicates and
- * well above the neighbours.
+ * pairs overlap by 0.86 and more, while two different cards in a fanned hand
+ * already reach 0.72 - so the threshold sits in the gap between them.
  */
-export const DEFAULT_DEDUPE_IOU = 0.85;
+export const DEFAULT_DEDUPE_IOU = 0.8;
 
 /**
  * Reads the detections out of the model's output tensor.
