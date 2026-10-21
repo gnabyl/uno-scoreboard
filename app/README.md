@@ -102,6 +102,13 @@ graph's class-wise NMS leaves behind.
 `src/api-helper/localModel.ts` runs the session, maps the corners back to the
 original image and sorts the cards in reading order.
 
+The graph's NMS is class-wise, so one card the model read as two different
+classes comes back twice. The app merges those with a class-agnostic pass
+over the rotated boxes, controlled by `VITE_DEDUPE_IOU` (default 0.8 - the
+overlap above which two detections count as the same card). Set it to `1` to
+switch the pass off; the cost is that a card read under two class labels is
+then counted and scored twice.
+
 The model itself:
 
 - lives in `public/model/uno-flip-detector.onnx` for local development

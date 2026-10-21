@@ -164,33 +164,22 @@ test('collapses older rounds and keeps the newest open', () => {
 });
 
 /** Walks through a scan and leaves the modal showing the detected cards. */
-async function runScan() {
-  vi.mocked(recognizeCards).mockResolvedValue({
-    cards: ['reverse', 'draw_five'],
-    detections: [
-      {
-        name: 'reverse',
-        conf: 0.96,
-        box: [10, 0, 50, 60],
-        corners: [
-          { x: 10, y: 0 },
-          { x: 50, y: 0 },
-          { x: 50, y: 60 },
-          { x: 10, y: 60 },
-        ],
-      },
-      {
-        name: 'draw_five',
-        conf: 0.5,
-        box: [100, 0, 140, 60],
-        corners: [
-          { x: 100, y: 0 },
-          { x: 140, y: 0 },
-          { x: 140, y: 60 },
-          { x: 100, y: 60 },
-        ],
-      },
+async function runScan(count = 2) {
+  const detections = Array.from({ length: count }, (_, i) => ({
+    name: i % 2 === 0 ? 'reverse' : 'draw_five',
+    conf: 0.9,
+    box: [i * 10, 0, i * 10 + 40, 60],
+    corners: [
+      { x: i * 10, y: 0 },
+      { x: i * 10 + 40, y: 0 },
+      { x: i * 10 + 40, y: 60 },
+      { x: i * 10, y: 60 },
     ],
+  }));
+
+  vi.mocked(recognizeCards).mockResolvedValue({
+    cards: detections.map((detection) => detection.name),
+    detections,
     width: 640,
     height: 480,
   });
@@ -208,8 +197,17 @@ async function runScan() {
     fireEvent.change(input, { target: { files: [file] } });
   }
 
-  await waitFor(() => expect(screen.getByText('Detected cards')).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText(/Detected cards/)).toBeInTheDocument());
 }
+
+test('lists every detected card', async () => {
+  await runScan(10);
+
+  expect(screen.getByText('Detected cards (10)')).toBeInTheDocument();
+  // One row per card, and one box per card on the preview.
+  expect(screen.getAllByText('reverse')).toHaveLength(5);
+  expect(screen.getAllByText('draw_five')).toHaveLength(5);
+});
 
 test('offers a box toggle on the scan preview', async () => {
   await runScan();

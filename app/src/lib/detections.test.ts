@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { dedupeDetections, readDetections } from './detections';
 
 const NAMES = [
@@ -30,6 +31,12 @@ const rotatedRow = (
   cls: number,
   angle = 0,
 ) => [cx, cy, w, h, conf, cls, angle];
+
+beforeEach(() => {
+  // Ignore a VITE_DEDUPE_IOU in the local .env, so the tests always check the
+  // shipped default.
+  vi.stubEnv('VITE_DEDUPE_IOU', '');
+});
 
 test('reads rotated rows as boxes with corners', () => {
   const data = new Float32Array(rotatedRow(100, 50, 40, 20, 0.9, 4, 0));
@@ -101,4 +108,15 @@ test('keeps the best-scoring detection of a group', () => {
 
   expect(detections).toHaveLength(1);
   expect(detections[0].cls).toBe(15);
+});
+
+test('the merge can be switched off with VITE_DEDUPE_IOU=1', () => {
+  vi.stubEnv('VITE_DEDUPE_IOU', '1');
+  const data = new Float32Array([
+    ...rotatedRow(100, 100, 80, 50, 0.95, 14),
+    ...rotatedRow(102, 101, 80, 50, 0.9, 15),
+  ]);
+  const detections = dedupeDetections(readDetections(data, 2, 7, 0.25));
+
+  expect(detections).toHaveLength(2);
 });

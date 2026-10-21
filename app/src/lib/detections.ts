@@ -23,8 +23,21 @@ export interface RawDetection {
  * card seen under two different class labels. Measured on real photos, those
  * pairs overlap by 0.86 and more, while two different cards in a fanned hand
  * already reach 0.72 - so the threshold sits in the gap between them.
+ *
+ * `VITE_DEDUPE_IOU` overrides it: set it to 1 to switch the pass off (no
+ * overlap can exceed 1, so nothing is ever merged). With the pass off, a
+ * card the model read as two different classes is counted twice.
  */
 export const DEFAULT_DEDUPE_IOU = 0.8;
+
+/**
+ * The configured overlap above which two detections are the same card.
+ * `VITE_DEDUPE_IOU=1` switches the pass off.
+ */
+export function dedupeIou(): number {
+  const configured = parseFloat(import.meta.env.VITE_DEDUPE_IOU ?? '');
+  return Number.isFinite(configured) ? configured : DEFAULT_DEDUPE_IOU;
+}
 
 /**
  * Reads the detections out of the model's output tensor.
@@ -73,14 +86,13 @@ export function readDetections(
  */
 export function dedupeDetections(
   detections: RawDetection[],
-  iouThreshold: number = DEFAULT_DEDUPE_IOU,
+  iouThreshold?: number,
 ): RawDetection[] {
+  const threshold = iouThreshold ?? dedupeIou();
   const kept: RawDetection[] = [];
 
   for (const detection of [...detections].sort((a, b) => b.conf - a.conf)) {
-    const duplicate = kept.some(
-      (other) => quadIoU(other.corners, detection.corners) > iouThreshold,
-    );
+    const duplicate = kept.some((other) => quadIoU(other.corners, detection.corners) > threshold);
     if (!duplicate) kept.push(detection);
   }
 

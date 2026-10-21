@@ -40,7 +40,7 @@ function drawBox(
   // Dark halo first, then the color on top: the box stays readable over a
   // white card and over a dark table.
   ctx.strokeStyle = HALO;
-  ctx.lineWidth = lineWidth * 2.6;
+  ctx.lineWidth = lineWidth * 2.2;
   ctx.stroke();
   ctx.strokeStyle = color.stroke;
   ctx.lineWidth = lineWidth;
@@ -53,11 +53,11 @@ function drawBox(
   ctx.font = `800 ${fontSize}px sans-serif`;
   const textWidth = ctx.measureText(text).width;
   // Above the box when there is room, inside it otherwise.
-  const labelTop = top - fontSize - 10 >= 0 ? top - fontSize - 10 : top + 6;
+  const labelTop = top - fontSize - 8 >= 0 ? top - fontSize - 8 : top + 4;
   ctx.fillStyle = 'rgba(10, 14, 22, 0.9)';
-  ctx.fillRect(left, labelTop, textWidth + 12, fontSize + 10);
+  ctx.fillRect(left, labelTop, textWidth + 10, fontSize + 8);
   ctx.fillStyle = color.stroke;
-  ctx.fillText(text, left + 6, labelTop + fontSize);
+  ctx.fillText(text, left + 5, labelTop + fontSize);
 }
 
 /**
@@ -89,30 +89,45 @@ export default function ScanPreview({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    // The image loads asynchronously. If the effect runs again before it
+    // finishes, the older load must not paint over the newer one - that
+    // would leave boxes on the preview that no longer match the list.
+    let cancelled = false;
     const image = new Image();
     image.onload = () => {
+      if (cancelled) return;
+
       canvas.width = width;
       canvas.height = height;
       ctx.drawImage(image, 0, 0, width, height);
 
       if (showBoxes) {
-        const lineWidth = Math.max(3, Math.round(Math.min(width, height) / 120));
-        const fontSize = Math.max(18, Math.round(Math.min(width, height) / 24));
+        const lineWidth = Math.max(2, Math.round(Math.min(width, height) / 170));
+        const fontSize = Math.max(15, Math.round(Math.min(width, height) / 30));
         detections.forEach((detection, index) => {
           drawBox(ctx, detection, index, lineWidth, fontSize);
         });
       }
 
-      const fontSize = Math.max(28, Math.round(height / 16));
+      const fontSize = Math.max(20, Math.round(height / 26));
       ctx.font = `700 ${fontSize}px sans-serif`;
       const textWidth = ctx.measureText(label).width;
       ctx.fillStyle = 'rgba(15, 21, 33, 0.85)';
-      ctx.fillRect(8, 8, textWidth + 16, fontSize + 12);
+      ctx.fillRect(8, 8, textWidth + 14, fontSize + 10);
       ctx.fillStyle = '#ffffff';
-      ctx.fillText(label, 16, 8 + fontSize + 2);
+      ctx.fillText(label, 15, 8 + fontSize + 2);
     };
     image.src = url;
+
+    return () => {
+      cancelled = true;
+    };
   }, [url, width, height, label, detections, showBoxes]);
+
+  // Fill the space the modal gives the preview, but never taller than the
+  // viewport: the width cap keeps the photo's aspect ratio, so the canvas is
+  // never squashed.
+  const ratio = height > 0 ? width / height : 1;
 
   return (
     <canvas
@@ -121,7 +136,8 @@ export default function ScanPreview({
       height={height}
       role="img"
       aria-label={alt}
-      className="mb-3.5 max-h-[260px] max-w-full rounded-xl border border-edge bg-deep"
+      style={{ maxWidth: `min(100%, calc(68vh * ${ratio.toFixed(4)}))` }}
+      className="mb-3.5 h-auto w-full rounded-xl border border-edge bg-deep"
     />
   );
 }

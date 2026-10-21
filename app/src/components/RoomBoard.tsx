@@ -653,7 +653,7 @@ export default function RoomBoard({
           onClick={closeScan}
         >
           <div
-            className="relative max-h-[96vh] w-full max-w-none overflow-y-auto rounded-[14px] border border-edge bg-panel p-4 shadow-modal sm:max-h-[90vh] sm:max-w-[420px] sm:rounded-[18px] sm:p-6"
+            className="relative max-h-[96vh] w-full max-w-none overflow-y-auto rounded-[14px] border border-edge bg-panel p-4 shadow-modal sm:max-h-[92vh] sm:max-w-[min(96vw,1400px)] sm:rounded-[18px] sm:p-6"
             role="dialog"
             aria-modal="true"
             aria-label={t('board.scanDialog')}
@@ -671,7 +671,7 @@ export default function RoomBoard({
               <div className="flex flex-col gap-3.5">
                 <video
                   ref={attachVideo}
-                  className="aspect-[4/3] w-full rounded-xl border border-edge bg-black object-cover"
+                  className="mx-auto aspect-[4/3] w-full max-w-[min(100%,620px)] rounded-xl border border-edge bg-black object-cover"
                   playsInline
                   muted
                 />
@@ -737,74 +737,80 @@ export default function RoomBoard({
             {scan.status === 'done' && (
               <div>
                 <h3 className="mb-3.5 text-[17px] font-bold text-white">
-                  {t('board.detectedCards')}
+                  {t('board.detectedCardsCount', { count: cardCount })}
                 </h3>
-                {scan.previewUrl && (
-                  <>
-                    <ScanPreview
-                      url={scan.previewUrl}
-                      width={scan.imageWidth ?? 0}
-                      height={scan.imageHeight ?? 0}
-                      label={t(
-                        cardCount === 1 ? 'board.cardCountSingular' : 'board.cardCountPlural',
-                        { count: cardCount },
-                      )}
-                      detections={scan.detections ?? []}
-                      showBoxes={showBoxes}
-                      alt={t('board.capturedAlt')}
-                    />
-                    <label className="mb-3.5 flex cursor-pointer items-center gap-2.5 text-sm text-muted">
+                <div className="sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(260px,320px)] sm:items-start sm:gap-6">
+                  <div className="min-w-0">
+                    {scan.previewUrl && (
+                      <>
+                        <ScanPreview
+                          url={scan.previewUrl}
+                          width={scan.imageWidth ?? 0}
+                          height={scan.imageHeight ?? 0}
+                          label={t(
+                            cardCount === 1 ? 'board.cardCountSingular' : 'board.cardCountPlural',
+                            { count: cardCount },
+                          )}
+                          detections={scan.detections ?? []}
+                          showBoxes={showBoxes}
+                          alt={t('board.capturedAlt')}
+                        />
+                        <label className="flex cursor-pointer items-center gap-2.5 text-sm text-muted">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 shrink-0 accent-accent"
+                            checked={showBoxes}
+                            onChange={(event) => setShowBoxes(event.target.checked)}
+                          />
+                          {t('board.showBoxes')}
+                        </label>
+                      </>
+                    )}
+                  </div>
+                  <div className="mt-4 min-w-0 sm:mt-0">
+                    {scan.cards && scan.cards.length > 0 ? (
+                      <ul className="mb-3.5 list-none p-0">
+                        {scan.cards.map((card, i) => (
+                          <li
+                            key={i}
+                            className="mb-1.5 flex items-center justify-between rounded-[10px] border border-edge-soft bg-deep px-3 py-2.5"
+                          >
+                            <span className="text-sm text-fg">{card}</span>
+                            <span className="text-sm font-bold text-[#ff4d4d]">
+                              −{scoreForCard(card)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mb-3.5 text-sm text-faint">{t('board.noCards')}</p>
+                    )}
+                    <div className="mb-[18px] flex items-center justify-between gap-3">
+                      <label className="text-sm font-semibold text-muted" htmlFor="scan-score">
+                        {t('board.totalScore')}
+                      </label>
                       <input
-                        type="checkbox"
-                        className="h-4 w-4 shrink-0 accent-accent"
-                        checked={showBoxes}
-                        onChange={(event) => setShowBoxes(event.target.checked)}
+                        id="scan-score"
+                        type="number"
+                        step="1"
+                        className="w-[100px] rounded-[10px] border border-edge bg-deep p-2.5 text-center text-base font-bold text-[#ff4d4d] outline-none focus:border-accent"
+                        value={scan.score}
+                        onChange={(event) =>
+                          setScan((prev) =>
+                            prev ? { ...prev, score: Number(event.target.value) } : prev,
+                          )
+                        }
                       />
-                      {t('board.showBoxes')}
-                    </label>
-                  </>
-                )}
-                {scan.cards && scan.cards.length > 0 ? (
-                  <ul className="mb-3.5 max-h-[180px] list-none overflow-y-auto p-0">
-                    {scan.cards.map((card, i) => (
-                      <li
-                        key={i}
-                        className="mb-1.5 flex items-center justify-between rounded-[10px] border border-edge-soft bg-deep px-3 py-2.5"
-                      >
-                        <span className="text-sm text-fg">{card}</span>
-                        <span className="text-sm font-bold text-[#ff4d4d]">
-                          −{scoreForCard(card)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mb-3.5 text-sm text-faint">{t('board.noCards')}</p>
-                )}
-                <div className="mb-[18px] flex items-center justify-between gap-3">
-                  <label className="text-sm font-semibold text-muted" htmlFor="scan-score">
-                    {t('board.totalScore')}
-                  </label>
-                  <input
-                    id="scan-score"
-                    type="number"
-                    step="1"
-                    className="w-[100px] rounded-[10px] border border-edge bg-deep p-2.5 text-center text-base font-bold text-[#ff4d4d] outline-none focus:border-accent"
-                    value={scan.score}
-                    onChange={(event) =>
-                      setScan((prev) =>
-                        prev ? { ...prev, score: Number(event.target.value) } : prev,
-                      )
-                    }
-                  />
-                </div>
-                <div className="flex justify-end gap-2.5">
-                  <button className={BTN_GHOST} onClick={closeScan}>
-                    {t('common.cancel')}
-                  </button>
-                  <button className={BTN_ACCENT} onClick={applyScannedScore}>
-                    {t('board.applyScore')}
-                  </button>
+                    </div>
+                    <div className="flex justify-end gap-2.5">
+                      <button className={BTN_GHOST} onClick={closeScan}>
+                        {t('common.cancel')}
+                      </button>
+                      <button className={BTN_ACCENT} onClick={applyScannedScore}>
+                        {t('board.applyScore')}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
