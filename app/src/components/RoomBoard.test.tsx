@@ -235,6 +235,28 @@ test('applies the scanned score', async () => {
   );
 });
 
+test('shows the whole camera frame in the preview', async () => {
+  render(<RoomBoard code="ABCDEFGH" snapshot={snapshot} onRefresh={() => {}} />);
+
+  const scanButton = screen.getByRole('button', { name: /scan alice's cards for round 1/i });
+  await waitFor(() => expect(scanButton).toBeEnabled());
+  fireEvent.click(scanButton);
+
+  const video = document.querySelector('video') as HTMLVideoElement;
+  expect(video).not.toBeNull();
+
+  // The camera delivers a portrait frame.
+  Object.defineProperty(video, 'videoWidth', { value: 720, configurable: true });
+  Object.defineProperty(video, 'videoHeight', { value: 1280, configurable: true });
+  fireEvent.loadedMetadata(video);
+
+  // The preview box takes the camera's own ratio, and the frame is scaled
+  // into it - so the preview is not a cropped, zoomed-in slice.
+  const box = video.parentElement as HTMLElement;
+  expect(box.style.aspectRatio).toBe('720 / 1280');
+  expect(video.className).toContain('object-contain');
+});
+
 test('scans with the in-page camera instead of the native camera app', async () => {
   // The native camera app runs in another app: Android Chrome reloads the
   // page when it closes, so the in-page camera is the one that is used.

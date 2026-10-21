@@ -147,6 +147,9 @@ export default function RoomBoard({
   const [showBoxes, setShowBoxes] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [modelReady, setModelReady] = useState(false);
+  // The size of the frame the camera delivers. The preview takes this ratio,
+  // so it shows what the camera really sees instead of a cropped 4:3 slice.
+  const [streamSize, setStreamSize] = useState<{ width: number; height: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -298,6 +301,7 @@ export default function RoomBoard({
 
   const startCamera = async (roundId: string, playerId: string) => {
     setCameraError(null);
+    setStreamSize(null);
     setScan({ roundId, playerId, status: 'capturing' });
 
     const token = ++cameraTokenRef.current;
@@ -723,7 +727,7 @@ export default function RoomBoard({
           onClick={closeScan}
         >
           <div
-            className="relative max-h-[96vh] w-full max-w-none overflow-y-auto rounded-[14px] border border-edge bg-panel p-4 shadow-modal sm:max-h-[92vh] sm:max-w-[min(96vw,1400px)] sm:rounded-[18px] sm:p-6"
+            className="relative flex max-h-[92dvh] w-full max-w-none flex-col overflow-y-auto rounded-[14px] border border-edge bg-panel p-4 shadow-modal sm:max-w-[min(96vw,1400px)] sm:rounded-[18px] sm:p-6"
             role="dialog"
             aria-modal="true"
             aria-label={t('board.scanDialog')}
@@ -739,12 +743,34 @@ export default function RoomBoard({
 
             {scan.status === 'capturing' && (
               <div className="flex flex-col gap-3.5">
-                <video
-                  ref={attachVideo}
-                  className="mx-auto aspect-[4/3] w-full max-w-[min(100%,620px)] rounded-xl border border-edge bg-black object-cover"
-                  playsInline
-                  muted
-                />
+                {/* The box takes the ratio the camera delivers, so the whole
+                    frame is visible - not a cropped, zoomed-in slice of it.
+                    The width is capped by the height as well, so the buttons
+                    below stay on screen. */}
+                <div
+                  className="mx-auto overflow-hidden rounded-xl border border-edge bg-black"
+                  style={{
+                    aspectRatio: streamSize
+                      ? `${streamSize.width} / ${streamSize.height}`
+                      : '4 / 3',
+                    width: streamSize
+                      ? `min(100%, 620px, calc(45vh * ${streamSize.width} / ${streamSize.height}))`
+                      : undefined,
+                  }}
+                >
+                  <video
+                    ref={attachVideo}
+                    onLoadedMetadata={(event) => {
+                      const video = event.currentTarget;
+                      if (video.videoWidth && video.videoHeight) {
+                        setStreamSize({ width: video.videoWidth, height: video.videoHeight });
+                      }
+                    }}
+                    className="h-full w-full object-contain"
+                    playsInline
+                    muted
+                  />
+                </div>
                 {cameraError ? (
                   <p className="m-0 text-center text-sm text-[#ffb3b3]">{cameraError}</p>
                 ) : (
@@ -805,12 +831,15 @@ export default function RoomBoard({
             )}
 
             {scan.status === 'done' && (
-              <div>
-                <h3 className="mb-3.5 text-[17px] font-bold text-white">
+              <div className="flex flex-col gap-3">
+                <h3 className="m-0 shrink-0 text-[17px] font-bold text-white">
                   {t('board.detectedCardsCount', { count: cardCount })}
                 </h3>
-                <div className="sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(260px,320px)] sm:items-start sm:gap-6">
-                  <div className="min-w-0">
+                {/* The photo keeps its own shape and is capped by the screen,
+                    the list scrolls in its own box: together they fit the
+                    modal, so it does not spill out of it. */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:gap-6">
+                  <div className="flex min-w-0 flex-col gap-2 sm:flex-1">
                     {scan.previewUrl && (
                       <>
                         <ScanPreview
@@ -825,7 +854,7 @@ export default function RoomBoard({
                           showBoxes={showBoxes}
                           alt={t('board.capturedAlt')}
                         />
-                        <label className="flex cursor-pointer items-center gap-2.5 text-sm text-muted">
+                        <label className="flex shrink-0 cursor-pointer items-center gap-2.5 text-sm text-muted">
                           <input
                             type="checkbox"
                             className="h-4 w-4 shrink-0 accent-accent"
@@ -837,7 +866,7 @@ export default function RoomBoard({
                       </>
                     )}
                   </div>
-                  <div className="mt-4 min-w-0 sm:mt-0">
+                  <div className="max-h-[28vh] min-w-0 overflow-y-auto sm:max-h-[45vh] sm:w-[min(320px,40%)] sm:shrink-0">
                     {scan.cards && scan.cards.length > 0 ? (
                       <ul className="mb-3.5 list-none p-0">
                         {scan.cards.map((card, i) => (
@@ -855,32 +884,34 @@ export default function RoomBoard({
                     ) : (
                       <p className="mb-3.5 text-sm text-faint">{t('board.noCards')}</p>
                     )}
-                    <div className="mb-[18px] flex items-center justify-between gap-3">
-                      <label className="text-sm font-semibold text-muted" htmlFor="scan-score">
-                        {t('board.totalScore')}
-                      </label>
-                      <input
-                        id="scan-score"
-                        type="number"
-                        step="1"
-                        className="w-[100px] rounded-[10px] border border-edge bg-deep p-2.5 text-center text-base font-bold text-[#ff4d4d] outline-none focus:border-accent"
-                        value={scan.score}
-                        onChange={(event) =>
-                          setScan((prev) =>
-                            prev ? { ...prev, score: Number(event.target.value) } : prev,
-                          )
-                        }
-                      />
-                    </div>
-                    <div className="flex justify-end gap-2.5">
-                      <button className={BTN_GHOST} onClick={closeScan}>
-                        {t('common.cancel')}
-                      </button>
-                      <button className={BTN_ACCENT} onClick={applyScannedScore}>
-                        {t('board.applyScore')}
-                      </button>
-                    </div>
                   </div>
+                </div>
+                {/* The score and the buttons stay pinned to the bottom, so
+                    they are reachable however long the list is. */}
+                <div className="flex shrink-0 items-center justify-between gap-3">
+                  <label className="text-sm font-semibold text-muted" htmlFor="scan-score">
+                    {t('board.totalScore')}
+                  </label>
+                  <input
+                    id="scan-score"
+                    type="number"
+                    step="1"
+                    className="w-[100px] rounded-[10px] border border-edge bg-deep p-2.5 text-center text-base font-bold text-[#ff4d4d] outline-none focus:border-accent"
+                    value={scan.score}
+                    onChange={(event) =>
+                      setScan((prev) =>
+                        prev ? { ...prev, score: Number(event.target.value) } : prev,
+                      )
+                    }
+                  />
+                </div>
+                <div className="flex shrink-0 justify-end gap-2.5">
+                  <button className={BTN_GHOST} onClick={closeScan}>
+                    {t('common.cancel')}
+                  </button>
+                  <button className={BTN_ACCENT} onClick={applyScannedScore}>
+                    {t('board.applyScore')}
+                  </button>
                 </div>
               </div>
             )}

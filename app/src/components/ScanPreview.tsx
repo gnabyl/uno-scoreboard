@@ -124,9 +124,11 @@ export default function ScanPreview({
     };
   }, [url, width, height, label, detections, showBoxes]);
 
-  // Fill the space the modal gives the preview, but never taller than the
-  // viewport: the width cap keeps the photo's aspect ratio, so the canvas is
-  // never squashed.
+  // The photo keeps its own shape. A portrait photo is sized by its height,
+  // so it does not sit in a wide empty frame; a landscape photo fills the
+  // width. Either way the whole picture is visible - never cropped, never
+  // squashed, and never taller than the modal.
+  const isPortrait = height > width;
   const ratio = height > 0 ? width / height : 1;
 
   return (
@@ -136,8 +138,16 @@ export default function ScanPreview({
       height={height}
       role="img"
       aria-label={alt}
-      style={{ maxWidth: `min(100%, calc(68vh * ${ratio.toFixed(4)}))` }}
-      className="mb-3.5 h-auto w-full rounded-xl border border-edge bg-deep"
+      style={
+        isPortrait
+          ? {
+              height: 'var(--preview-h)',
+              width: `calc(var(--preview-h) * ${ratio.toFixed(4)})`,
+              maxWidth: '100%',
+            }
+          : { width: '100%', height: 'auto' }
+      }
+      className="mx-auto h-auto max-w-full rounded-xl border border-edge bg-deep object-contain [--preview-h:38vh] sm:[--preview-h:55vh]"
     />
   );
 }
