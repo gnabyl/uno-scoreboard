@@ -37,6 +37,8 @@ export function describeRoomError(
       return t('error.scoreConflict');
     case 'version_conflict':
       return t('error.versionConflict');
+    case 'session_expired':
+      return t('error.sessionExpired');
     default:
       // Server messages are not localized, but they are more specific than a
       // generic fallback, so prefer them when present.

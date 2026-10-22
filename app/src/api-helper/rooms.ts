@@ -1,4 +1,5 @@
-import { ensureSession, supabase } from './supabase';
+import { isAuthError } from './authErrors';
+import { ensureSession, resetSession, supabase } from './supabase';
 
 /** A player in a room, as returned by the get_room RPC. */
 export interface RoomPlayer {
@@ -116,7 +117,25 @@ function toRoomError(error: any): RoomApiError {
 
 async function call(name: string, params: Record<string, any>): Promise<any> {
   await ensureSession();
-  const { data, error } = await supabase!.rpc(name, params);
+  let { data, error } = await supabase!.rpc(name, params);
+
+  if (error && isAuthError(error)) {
+    // The stored session outlived its user (e.g. the anonymous account was
+    // deleted). A rejected request has no server-side effect, so retrying the
+    // same command once with a fresh session is safe.
+    await resetSession();
+    await ensureSession();
+    ({ data, error } = await supabase!.rpc(name, params));
+
+    if (error && isAuthError(error)) {
+      throw new RoomApiError('Your session expired. Reload the page.', {
+        code: 'session_expired',
+        details: error.details ?? null,
+        status: (error as any).status ?? null,
+      });
+    }
+  }
+
   if (error) throw toRoomError(error);
   return data;
 }

@@ -116,6 +116,7 @@ export const en = {
   'error.playerTaken': 'That name was just taken. Pick another.',
   'error.scoreConflict': 'Another player changed that score.',
   'error.versionConflict': 'The room changed since you loaded it. Try again.',
+  'error.sessionExpired': 'Your session expired. Reload the page.',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -234,4 +235,5 @@ export const vi: Record<TranslationKey, string> = {
   'error.playerTaken': 'Tên đó vừa bị người khác chọn. Hãy chọn tên khác.',
   'error.scoreConflict': 'Người chơi khác đã thay đổi điểm đó.',
   'error.versionConflict': 'Phòng đã thay đổi kể từ khi bạn tải. Hãy thử lại.',
+  'error.sessionExpired': 'Phiên làm việc đã hết hạn. Hãy tải lại trang.',
 };
